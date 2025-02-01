@@ -1,13 +1,15 @@
+use std::collections::HashMap;
+
 use crate::ast::{Node, NodeInner};
 
 pub enum Type<'a> {
-    And(Vec<Type<'a>>),
-    Or(Vec<Type<'a>>),
+    And(Vec<&'a str>),
+    Or(Vec<&'a str>),
     Primitive(&'a str),
 }
 
 pub fn eval(input: Vec<Node>) {
-    let mut primitives = Vec::new();
+    let mut types = HashMap::new();
     for command in &input {
         match &command.inner {
             crate::ast::NodeInner::List(nodes) => match nodes.first() {
@@ -16,10 +18,11 @@ pub fn eval(input: Vec<Node>) {
                     ..
                 }) => {
                     println!("defining primitive");
-                    primitives.push(match &nodes[1].inner {
+                    let primitive = match &nodes[1].inner {
                         NodeInner::List(nodes) => todo!(),
                         NodeInner::Symbol(symbol) => *symbol,
-                    })
+                    };
+                    types.insert(primitive, Type::Primitive(primitive));
                 }
                 Some(Node {
                     inner: NodeInner::Symbol("define-type"),
@@ -33,13 +36,35 @@ pub fn eval(input: Vec<Node>) {
                     };
                     match definition[0].inner {
                         NodeInner::Symbol("and") => {
-                            println!("and type")
+                            println!("and type");
+                            let and_types: Vec<&str> = definition[1..]
+                                .iter()
+                                .map(|elem| match &elem.inner {
+                                    NodeInner::List(nodes) => todo!(),
+                                    NodeInner::Symbol(name) => *name,
+                                })
+                                .collect();
+                            types.insert(name, Type::And(and_types));
                         }
                         NodeInner::Symbol("or") => {
-                            println!("or type")
+                            println!("or type");
+                            let and_types: Vec<&str> = definition[1..]
+                                .iter()
+                                .map(|elem| match &elem.inner {
+                                    NodeInner::List(nodes) => todo!(),
+                                    NodeInner::Symbol(name) => *name,
+                                })
+                                .collect();
+                            types.insert(name, Type::Or(and_types));
                         }
                         _ => todo!(),
                     }
+                }
+                Some(Node {
+                    inner: NodeInner::Symbol("define-function"),
+                    ..
+                }) => {
+                    todo!()
                 }
                 Some(Node {
                     inner: NodeInner::Symbol(command),
