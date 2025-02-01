@@ -3,7 +3,7 @@
 
 (define-type bit (or 0 1))
 
-(define-function add-with-carry ((carry-out bit) (result bit)) (carry-in bit) (a bit) (b bit)
+(define-function add-with-carry ((carry-out bit) (result bit)) ((carry-in bit) (a bit) (b bit))
     (if (= a 0)
         (if (= b 0)
             (if (= carry-in 0)
@@ -22,7 +22,7 @@
 
 (define-type byte (and bit bit bit bit bit bit bit bit))
 
-(define-function add ((result byte) (carry bit))
+(define-function add ((result byte) (carry bit)) ((a byte) (b byte))
     (let (((carry-out-0 bit-0) (call add 0 (nth a 0) (nth b 0)))
           ((carry-out-1 bit-1) (call add carry-out-0 (nth a 1) (nth b 1)))
           ((carry-out-2 bit-2) (call add carry-out-1 (nth a 2) (nth b 2)))
