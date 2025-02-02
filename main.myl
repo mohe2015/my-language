@@ -7,18 +7,18 @@
     (if (= a 0)
         (if (= b 0)
             (if (= carry-in 0)
-                (0 0)  ; a = 0, b = 0, carry = 0
-                (0 1)) ; a = 0, b = 0, carry = 1
+                (0 0)
+                (0 1)
             (if (= carry-in 0)
-                (0 1)   ; a = 0, b = 1, carry = 0
-                (1 0))) ; a = 0, b = 1, carry = 1
+                (0 1)
+                (1 0)))
         (if (= b 0)
             (if (= carry-in 0)
-                (0 1)  ; a = 1, b = 0, carry = 0
-                (1 0)) ; a = 1, b = 0, carry = 1
+                (0 1)
+                (1 0))
             (if (= carry-in 0)
-                (1 0) ; a = 1, b = 1, carry = 0
-                (1 1))))) ; a = 1, b = 1, carry = 1
+                (1 0)
+                (1 1))))))
 
 (define-type byte (and bit bit bit bit bit bit bit bit))
 
