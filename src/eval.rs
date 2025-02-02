@@ -2,6 +2,7 @@ use std::collections::HashMap;
 
 use crate::ast::{Node, NodeInner};
 
+#[derive(Debug)]
 pub enum Type<'a> {
     And(Vec<&'a str>),
     Or(Vec<&'a str>),
@@ -24,7 +25,6 @@ pub fn eval(input: Vec<Node>) {
                     inner: NodeInner::Symbol("define-primitive"),
                     ..
                 }) => {
-                    println!("defining primitive");
                     let primitive = match &nodes[1].inner {
                         NodeInner::List(nodes) => todo!(),
                         NodeInner::Symbol(symbol) => *symbol,
@@ -43,7 +43,6 @@ pub fn eval(input: Vec<Node>) {
                     };
                     match definition[0].inner {
                         NodeInner::Symbol("and") => {
-                            println!("and type");
                             let and_types: Vec<&str> = definition[1..]
                                 .iter()
                                 .map(|elem| match &elem.inner {
@@ -54,7 +53,6 @@ pub fn eval(input: Vec<Node>) {
                             types.insert(name, Type::And(and_types));
                         }
                         NodeInner::Symbol("or") => {
-                            println!("or type");
                             let and_types: Vec<&str> = definition[1..]
                                 .iter()
                                 .map(|elem| match &elem.inner {
@@ -111,11 +109,30 @@ pub fn eval(input: Vec<Node>) {
                     inner: NodeInner::Symbol(command),
                     ..
                 }) => {
-                    todo!("unknown command {command}")
+                    if let Some(typ) = types.get(command) {
+                        match typ {
+                            Type::And(items) => todo!("construct type"),
+                            Type::Or(items) => todo!("construct type"),
+                            Type::Primitive(_) => eprintln!("primitive is not callable"),
+                            Type::Function {
+                                params,
+                                returns,
+                                body,
+                            } => todo!("call function"),
+                        }
+                    } else {
+                        eprintln!("unknown command {command}")
+                    }
                 }
                 _ => todo!(),
             },
-            crate::ast::NodeInner::Symbol(symbol) => todo!("{symbol}"),
+            crate::ast::NodeInner::Symbol(symbol) => {
+                if let Some(typ) = types.get(symbol) {
+                    println!("{symbol} -> {typ:?}")
+                } else {
+                    eprintln!("unknown symbol {symbol}");
+                }
+            }
         }
     }
 }

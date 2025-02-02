@@ -7,8 +7,8 @@ use eval::eval;
 
 pub fn main() {
     let code = fs::read_to_string("main.myl").unwrap();
-    println!("{code}");
+    //println!("{code}");
     let parsed = parse_toplevel(&code);
-    println!("{parsed:#?}");
+    //println!("{parsed:#?}");
     eval(parsed);
 }
