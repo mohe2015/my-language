@@ -1,53 +1,36 @@
-(define-primitive 0)
-(define-primitive 1)
-
-(define-type bit (or 0 1))
-
-(define-function add-with-carry ((carry-out bit) (result bit)) ((carry-in bit) (a bit) (b bit))
-    (if (= a 0)
-        (if (= b 0)
-            (if (= carry-in 0)
-                (0 0)
-                (0 1)
-            (if (= carry-in 0)
-                (0 1)
-                (1 0)))
-        (if (= b 0)
-            (if (= carry-in 0)
-                (0 1)
-                (1 0))
-            (if (= carry-in 0)
-                (1 0)
-                (1 1))))))
-
-(define-type byte (and bit bit bit bit bit bit bit bit))
-
-(define-function add ((result byte) (carry bit)) ((a byte) (b byte))
-    (let (((carry-out-0 bit-0) (call add 0 (nth a 0) (nth b 0)))
-          ((carry-out-1 bit-1) (call add carry-out-0 (nth a 1) (nth b 1)))
-          ((carry-out-2 bit-2) (call add carry-out-1 (nth a 2) (nth b 2)))
-          ((carry-out-3 bit-3) (call add carry-out-2 (nth a 3) (nth b 3)))
-          ((carry-out-4 bit-4) (call add carry-out-3 (nth a 4) (nth b 4)))
-          ((carry-out-5 bit-5) (call add carry-out-4 (nth a 5) (nth b 5)))
-          ((carry-out-6 bit-6) (call add carry-out-5 (nth a 6) (nth b 6)))
-          ((carry-out-7 bit-7) (call add carry-out-6 (nth a 7) (nth b 7)))
-        (byte bit-0 bit-1 bit-2 bit-3 bit-4 bit-5 bit-6 bit-7)
-    )))
-
-(define-type int4 (and byte byte byte byte))
-
-int4
-
-add
-
-0
-
-1
-
-(bit 0)
-
-(bit 1)
-
-(byte (bit 0) (bit 0) (bit 0) (bit 0) (bit 0) (bit 0) (bit 0) (bit 1))
-
-(add (construct byte 0 0 0 0 0 0 0 1) (construct byte 0 0 0 0 0 0 0 1))
+(let (0 (define-primitive))
+     (1 (define-primitive))
+     (bit (define-type (or 0 1)))
+     (add-with-carry (define-function ((carry-out bit) (result bit)) ((carry-in bit) (a bit) (b bit))
+        (if (= a 0)
+            (if (= b 0)
+                (if (= carry-in 0)
+                    (0 0)
+                    (0 1)
+                (if (= carry-in 0)
+                    (0 1)
+                    (1 0)))
+            (if (= b 0)
+                (if (= carry-in 0)
+                    (0 1)
+                    (1 0))
+                (if (= carry-in 0)
+                    (1 0)
+                    (1 1)))))))
+     (byte (define-type (and bit bit bit bit bit bit bit bit)))
+     (add (define-function ((result byte) (carry bit)) ((a byte) (b byte))
+        (let (((carry-out-0 bit-0) (call add 0 (nth a 0) (nth b 0)))
+            ((carry-out-1 bit-1) (call add carry-out-0 (nth a 1) (nth b 1)))
+            ((carry-out-2 bit-2) (call add carry-out-1 (nth a 2) (nth b 2)))
+            ((carry-out-3 bit-3) (call add carry-out-2 (nth a 3) (nth b 3)))
+            ((carry-out-4 bit-4) (call add carry-out-3 (nth a 4) (nth b 4)))
+            ((carry-out-5 bit-5) (call add carry-out-4 (nth a 5) (nth b 5)))
+            ((carry-out-6 bit-6) (call add carry-out-5 (nth a 6) (nth b 6)))
+            ((carry-out-7 bit-7) (call add carry-out-6 (nth a 7) (nth b 7)))
+            (byte bit-0 bit-1 bit-2 bit-3 bit-4 bit-5 bit-6 bit-7)
+        ))))
+    (int4 (define-type (and byte byte byte byte)))
+    (test1 (bit 0))
+    (test2 (bit 1))
+    (test3 (byte (bit 0) (bit 0) (bit 0) (bit 0) (bit 0) (bit 0) (bit 0) (bit 1)))
+    (add (construct byte 0 0 0 0 0 0 0 1) (construct byte 0 0 0 0 0 0 0 1)))
