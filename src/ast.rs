@@ -1,13 +1,35 @@
 #[derive(Debug)]
 pub struct Node<'a> {
     slice: &'a str,
-    pub inner: NodeInner<'a>
+    pub inner: NodeInner<'a>,
 }
 
 #[derive(Debug)]
 pub enum NodeInner<'a> {
     List(Vec<Node<'a>>),
-    Symbol(&'a str)
+    Symbol(&'a str),
+}
+
+impl<'a> TryFrom<&'a Node<'a>> for &'a Vec<Node<'a>> {
+    type Error = ();
+
+    fn try_from(value: &'a Node<'a>) -> Result<Self, Self::Error> {
+        match &value.inner {
+            NodeInner::List(nodes) => Ok(nodes),
+            NodeInner::Symbol(_) => panic!(),
+        }
+    }
+}
+
+impl<'a> TryFrom<&'a Node<'a>> for &'a str {
+    type Error = ();
+
+    fn try_from(value: &'a Node<'a>) -> Result<Self, Self::Error> {
+        match &value.inner {
+            NodeInner::List(nodes) => panic!(),
+            NodeInner::Symbol(symbol) => Ok(symbol),
+        }
+    }
 }
 
 pub fn parse_toplevel(mut input: &str) -> Vec<Node> {
@@ -43,18 +65,20 @@ pub fn parse(input: &str) -> (&str, Node) {
         input = &input[1..];
         (input, Node {
             inner: NodeInner::List(elems),
-            slice: &list_start[0..input.as_ptr() as usize-list_start.as_ptr() as usize],
+            slice: &list_start[0..input.as_ptr() as usize - list_start.as_ptr() as usize],
         })
     } else {
         // parse one symbol but dont eat closing parenc
-        let idx = input.find(|c| char::is_ascii_whitespace(&c) || c == ')').unwrap_or(input.len());
+        let idx = input
+            .find(|c| char::is_ascii_whitespace(&c) || c == ')')
+            .unwrap_or(input.len());
         let (symbol, rest) = input.split_at_checked(idx).unwrap();
         if symbol.is_empty() {
             panic!("symbol must not be empty")
         }
         (rest, Node {
             inner: NodeInner::Symbol(symbol),
-            slice: symbol
+            slice: symbol,
         })
     }
 }
