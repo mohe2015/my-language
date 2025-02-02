@@ -30,6 +30,10 @@ pub enum Value<'a> {
         typ: Box<Value<'a>>,
         value: Box<Value<'a>>,
     },
+    AndInstance {
+        typ: Box<Value<'a>>,
+        value: Vec<Value<'a>>,
+    },
     PrimitiveInstance(u64),
 }
 
@@ -126,15 +130,21 @@ pub fn eval<'a>(input: &'a Node<'a>, env: &mut HashMap<&'a str, Value<'a>>) -> V
             }) => {
                 if let Some(typ) = env.get(command) {
                     match typ {
-                        Value::AndType(items) => todo!("construct type"),
+                        Value::AndType(items) => {
+                            let and_instances: Vec<Value<'a>> = nodes[1..]
+                                .iter()
+                                .map(|elem| eval(&nodes[1], &mut env.clone()))
+                                .collect();
+                            Value::AndInstance {
+                                typ: Box::new(typ.to_owned()),
+                                value: and_instances,
+                            }
+                        }
                         Value::OrType(items) => {
-                            let instantiated_type: &str = (&nodes[1]).try_into().unwrap();
-                            if items.contains(&instantiated_type) {
-                                todo!("actually construct type")
-                            } else {
-                                panic!(
-                                    "{instantiated_type} can't be constructed for type containing or of {items:?}"
-                                )
+                            let instantiated_type = eval(&nodes[1], &mut env.clone());
+                            Value::OrInstance {
+                                typ: Box::new(typ.to_owned()),
+                                value: Box::new(instantiated_type),
                             }
                         }
                         Value::PrimitiveType(_) => panic!("primitive is not callable"),
@@ -146,6 +156,7 @@ pub fn eval<'a>(input: &'a Node<'a>, env: &mut HashMap<&'a str, Value<'a>>) -> V
                         Value::Unit => todo!("unit is not callable"),
                         Value::OrInstance { typ, value } => todo!(),
                         Value::PrimitiveInstance(_) => todo!(),
+                        Value::AndInstance { typ, value } => todo!(),
                     }
                 } else {
                     panic!("unknown command {command}")
