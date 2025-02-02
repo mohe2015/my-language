@@ -112,7 +112,16 @@ pub fn eval(input: Vec<Node>) {
                     if let Some(typ) = types.get(command) {
                         match typ {
                             Type::And(items) => todo!("construct type"),
-                            Type::Or(items) => todo!("construct type"),
+                            Type::Or(items) => {
+                                let instantiated_type: &str = (&nodes[1]).try_into().unwrap();
+                                if items.contains(&instantiated_type) {
+                                    todo!("actually construct type")
+                                } else {
+                                    eprintln!(
+                                        "{instantiated_type} can't be constructed for type containing or of {items:?}"
+                                    )
+                                }
+                            }
                             Type::Primitive(_) => eprintln!("primitive is not callable"),
                             Type::Function {
                                 params,
