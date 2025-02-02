@@ -121,6 +121,7 @@ pub fn eval<'a>(input: &'a Node<'a>, env: &mut HashMap<&'a str, Value<'a>>) -> V
                 let name: &str = (&nodes[1]).try_into().unwrap();
                 let value = &nodes[2];
                 let value = eval(value, &mut env.clone());
+                println!("set {name} {value:?}");
                 env.insert(name, value);
                 Value::Unit
             }
@@ -133,7 +134,7 @@ pub fn eval<'a>(input: &'a Node<'a>, env: &mut HashMap<&'a str, Value<'a>>) -> V
                         Value::AndType(items) => {
                             let and_instances: Vec<Value<'a>> = nodes[1..]
                                 .iter()
-                                .map(|elem| eval(&nodes[1], &mut env.clone()))
+                                .map(|elem| eval(&elem, &mut env.clone()))
                                 .collect();
                             Value::AndInstance {
                                 typ: Box::new(typ.to_owned()),
