@@ -16,131 +16,130 @@ pub enum Type<'a> {
     },
 }
 
-pub fn eval(input: Vec<Node>) {
-    let mut types = HashMap::new();
-    for command in &input {
-        match &command.inner {
-            crate::ast::NodeInner::List(nodes) => match nodes.first() {
-                Some(Node {
-                    inner: NodeInner::Symbol("define-primitive"),
-                    ..
-                }) => {
-                    let primitive = match &nodes[1].inner {
-                        NodeInner::List(nodes) => todo!(),
-                        NodeInner::Symbol(symbol) => *symbol,
-                    };
-                    types.insert(primitive, Type::Primitive(primitive));
-                }
-                Some(Node {
-                    inner: NodeInner::Symbol("define-type"),
-                    ..
-                }) => {
-                    let NodeInner::Symbol(name) = nodes[1].inner else {
-                        todo!()
-                    };
-                    let NodeInner::List(definition) = &nodes[2].inner else {
-                        todo!()
-                    };
-                    match definition[0].inner {
-                        NodeInner::Symbol("and") => {
-                            let and_types: Vec<&str> = definition[1..]
-                                .iter()
-                                .map(|elem| match &elem.inner {
-                                    NodeInner::List(nodes) => todo!(),
-                                    NodeInner::Symbol(name) => *name,
-                                })
-                                .collect();
-                            types.insert(name, Type::And(and_types));
-                        }
-                        NodeInner::Symbol("or") => {
-                            let and_types: Vec<&str> = definition[1..]
-                                .iter()
-                                .map(|elem| match &elem.inner {
-                                    NodeInner::List(nodes) => todo!(),
-                                    NodeInner::Symbol(name) => *name,
-                                })
-                                .collect();
-                            types.insert(name, Type::Or(and_types));
-                        }
-                        _ => todo!(),
+#[derive(Debug)]
+pub enum Value<'a> {
+    PrimitiveType(&'a str),
+    AndType(Vec<&'a str>),
+    OrType(Vec<&'a str>),
+    Function {
+        /// (name type)
+        params: Vec<(&'a str, &'a str)>,
+        /// (name type)
+        returns: Vec<(&'a str, &'a str)>,
+        body: &'a Node<'a>,
+    },
+}
+
+pub fn eval<'a>(input: &'a Node<'a>, env: &mut HashMap<&'a str, Value>) -> Value<'a> {
+    match &input.inner {
+        crate::ast::NodeInner::List(nodes) => match nodes.first() {
+            Some(Node {
+                inner: NodeInner::Symbol("define-primitive"),
+                ..
+            }) => {
+                assert_eq!(nodes.len(), 2);
+                let primitive: &str = (&nodes[1]).try_into().unwrap();
+                Value::PrimitiveType(primitive)
+            }
+            Some(Node {
+                inner: NodeInner::Symbol("define-type"),
+                ..
+            }) => {
+                assert_eq!(nodes.len(), 2);
+                let definition: &'a Vec<Node<'a>> = (&nodes[1]).try_into().unwrap();
+                match definition[0].inner {
+                    NodeInner::Symbol("and") => {
+                        let and_types: Vec<&str> = definition[1..]
+                            .iter()
+                            .map(|elem| match &elem.inner {
+                                NodeInner::List(nodes) => todo!(),
+                                NodeInner::Symbol(name) => *name,
+                            })
+                            .collect();
+                        Value::AndType(and_types)
                     }
+                    NodeInner::Symbol("or") => {
+                        let and_types: Vec<&str> = definition[1..]
+                            .iter()
+                            .map(|elem| match &elem.inner {
+                                NodeInner::List(nodes) => todo!(),
+                                NodeInner::Symbol(name) => *name,
+                            })
+                            .collect();
+                        Value::OrType(and_types)
+                    }
+                    _ => todo!(),
                 }
-                Some(Node {
-                    inner: NodeInner::Symbol("define-function"),
-                    ..
-                }) => {
-                    let NodeInner::Symbol(name) = nodes[1].inner else {
-                        todo!()
-                    };
-                    let NodeInner::List(returns) = &nodes[2].inner else {
-                        todo!()
-                    };
-                    let returns: Vec<(&str, &str)> = returns
-                        .iter()
-                        .map(|elem| match &elem.inner {
-                            NodeInner::List(list) => (
-                                (&list[0]).try_into().unwrap(),
-                                (&list[1]).try_into().unwrap(),
-                            ),
-                            NodeInner::Symbol(_) => todo!(),
-                        })
-                        .collect();
-                    let NodeInner::List(params) = &nodes[3].inner else {
-                        todo!()
-                    };
-                    let params: Vec<(&str, &str)> = params
-                        .iter()
-                        .map(|elem| match &elem.inner {
-                            NodeInner::List(list) => (
-                                (&list[0]).try_into().unwrap(),
-                                (&list[1]).try_into().unwrap(),
-                            ),
-                            NodeInner::Symbol(_) => todo!(),
-                        })
-                        .collect();
-                    let body = &nodes[4];
-                    types.insert(name, Type::Function {
-                        params,
-                        returns,
-                        body,
-                    });
+            }
+            Some(Node {
+                inner: NodeInner::Symbol("define-function"),
+                ..
+            }) => {
+                assert_eq!(nodes.len(), 4);
+                let returns: &'a Vec<Node<'a>> = (&nodes[1]).try_into().unwrap();
+                let returns: Vec<(&str, &str)> = returns
+                    .iter()
+                    .map(|elem| match &elem.inner {
+                        NodeInner::List(list) => (
+                            (&list[0]).try_into().unwrap(),
+                            (&list[1]).try_into().unwrap(),
+                        ),
+                        NodeInner::Symbol(_) => todo!(),
+                    })
+                    .collect();
+                let params: &'a Vec<Node<'a>> = (&nodes[2]).try_into().unwrap();
+                let params: Vec<(&str, &str)> = params
+                    .iter()
+                    .map(|elem| match &elem.inner {
+                        NodeInner::List(list) => (
+                            (&list[0]).try_into().unwrap(),
+                            (&list[1]).try_into().unwrap(),
+                        ),
+                        NodeInner::Symbol(_) => todo!(),
+                    })
+                    .collect();
+                let body = &nodes[3];
+                Value::Function {
+                    params,
+                    returns,
+                    body,
                 }
-                Some(Node {
-                    inner: NodeInner::Symbol(command),
-                    ..
-                }) => {
-                    if let Some(typ) = types.get(command) {
-                        match typ {
-                            Type::And(items) => todo!("construct type"),
-                            Type::Or(items) => {
-                                let instantiated_type: &str = (&nodes[1]).try_into().unwrap();
-                                if items.contains(&instantiated_type) {
-                                    todo!("actually construct type")
-                                } else {
-                                    eprintln!(
-                                        "{instantiated_type} can't be constructed for type containing or of {items:?}"
-                                    )
-                                }
+            }
+            Some(Node {
+                inner: NodeInner::Symbol(command),
+                ..
+            }) => {
+                if let Some(typ) = env.get(command) {
+                    match typ {
+                        Value::AndType(items) => todo!("construct type"),
+                        &Value::OrType(items) => {
+                            let instantiated_type: &str = (&nodes[1]).try_into().unwrap();
+                            if items.contains(&instantiated_type) {
+                                todo!("actually construct type")
+                            } else {
+                                panic!(
+                                    "{instantiated_type} can't be constructed for type containing or of {items:?}"
+                                )
                             }
-                            Type::Primitive(_) => eprintln!("primitive is not callable"),
-                            Type::Function {
-                                params,
-                                returns,
-                                body,
-                            } => todo!("call function"),
                         }
-                    } else {
-                        eprintln!("unknown command {command}")
+                        Value::PrimitiveType(_) => panic!("primitive is not callable"),
+                        Value::Function {
+                            params,
+                            returns,
+                            body,
+                        } => todo!("call function"),
                     }
-                }
-                _ => todo!(),
-            },
-            crate::ast::NodeInner::Symbol(symbol) => {
-                if let Some(typ) = types.get(symbol) {
-                    println!("{symbol} -> {typ:?}")
                 } else {
-                    eprintln!("unknown symbol {symbol}");
+                    panic!("unknown command {command}")
                 }
+            }
+            _ => todo!(),
+        },
+        crate::ast::NodeInner::Symbol(symbol) => {
+            if let Some(value) = env.get(symbol) {
+                *value
+            } else {
+                panic!("unknown symbol {symbol}");
             }
         }
     }

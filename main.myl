@@ -1,5 +1,6 @@
-(let (0 (define-primitive))
-     (1 (define-primitive))
+(set 0 (define-primitive))
+
+(let (1 (define-primitive))
      (bit (define-type (or 0 1)))
      (add-with-carry (define-function ((carry-out bit) (result bit)) ((carry-in bit) (a bit) (b bit))
         (if (= a 0)
