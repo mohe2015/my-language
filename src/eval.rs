@@ -16,7 +16,7 @@ pub enum Type<'a> {
     },
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum Value<'a> {
     PrimitiveType(&'a str),
     AndType(Vec<&'a str>),
@@ -28,9 +28,10 @@ pub enum Value<'a> {
         returns: Vec<(&'a str, &'a str)>,
         body: &'a Node<'a>,
     },
+    Unit, // TODO special primitivetype?
 }
 
-pub fn eval<'a>(input: &'a Node<'a>, env: &mut HashMap<&'a str, Value>) -> Value<'a> {
+pub fn eval<'a>(input: &'a Node<'a>, env: &mut HashMap<&'a str, Value<'a>>) -> Value<'a> {
     match &input.inner {
         crate::ast::NodeInner::List(nodes) => match nodes.first() {
             Some(Node {
@@ -106,13 +107,22 @@ pub fn eval<'a>(input: &'a Node<'a>, env: &mut HashMap<&'a str, Value>) -> Value
                 }
             }
             Some(Node {
+                inner: NodeInner::Symbol("set"),
+                ..
+            }) => {
+                assert_eq!(nodes.len(), 3);
+                let name: &str = (&nodes[1]).try_into().unwrap();
+                let value = &nodes[2];
+                Value::Unit
+            }
+            Some(Node {
                 inner: NodeInner::Symbol(command),
                 ..
             }) => {
                 if let Some(typ) = env.get(command) {
                     match typ {
                         Value::AndType(items) => todo!("construct type"),
-                        &Value::OrType(items) => {
+                        Value::OrType(items) => {
                             let instantiated_type: &str = (&nodes[1]).try_into().unwrap();
                             if items.contains(&instantiated_type) {
                                 todo!("actually construct type")
@@ -128,6 +138,7 @@ pub fn eval<'a>(input: &'a Node<'a>, env: &mut HashMap<&'a str, Value>) -> Value
                             returns,
                             body,
                         } => todo!("call function"),
+                        Value::Unit => todo!("unit is not callable"),
                     }
                 } else {
                     panic!("unknown command {command}")
@@ -137,7 +148,7 @@ pub fn eval<'a>(input: &'a Node<'a>, env: &mut HashMap<&'a str, Value>) -> Value
         },
         crate::ast::NodeInner::Symbol(symbol) => {
             if let Some(value) = env.get(symbol) {
-                *value
+                value.to_owned()
             } else {
                 panic!("unknown symbol {symbol}");
             }
