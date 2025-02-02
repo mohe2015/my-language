@@ -1,4 +1,7 @@
-use std::collections::HashMap;
+use std::{
+    collections::HashMap,
+    sync::atomic::{AtomicU64, Ordering},
+};
 
 use crate::ast::{Node, NodeInner};
 
@@ -6,19 +9,12 @@ use crate::ast::{Node, NodeInner};
 pub enum Type<'a> {
     And(Vec<&'a str>),
     Or(Vec<&'a str>),
-    Primitive(&'a str),
-    Function {
-        /// (name type)
-        params: Vec<(&'a str, &'a str)>,
-        /// (name type)
-        returns: Vec<(&'a str, &'a str)>,
-        body: &'a Node<'a>,
-    },
+    Primitive(),
 }
 
 #[derive(Debug, Clone)]
 pub enum Value<'a> {
-    PrimitiveType(),
+    PrimitiveType(u64), // global id
     AndType(Vec<&'a str>),
     OrType(Vec<&'a str>),
     Function {
@@ -29,7 +25,15 @@ pub enum Value<'a> {
         body: &'a Node<'a>,
     },
     Unit, // TODO special primitivetype?
+    OrInstance {
+        // TODO FIXME
+        typ: Box<Value<'a>>,
+        value: Box<Value<'a>>,
+    },
+    PrimitiveInstance(u64),
 }
+
+static PRIMITIVE_COUNTER: AtomicU64 = AtomicU64::new(0);
 
 pub fn eval<'a>(input: &'a Node<'a>, env: &mut HashMap<&'a str, Value<'a>>) -> Value<'a> {
     match &input.inner {
@@ -39,7 +43,7 @@ pub fn eval<'a>(input: &'a Node<'a>, env: &mut HashMap<&'a str, Value<'a>>) -> V
                 ..
             }) => {
                 assert_eq!(nodes.len(), 1);
-                Value::PrimitiveType()
+                Value::PrimitiveType(PRIMITIVE_COUNTER.fetch_add(1, Ordering::Relaxed))
             }
             Some(Node {
                 inner: NodeInner::Symbol("define-type"),
@@ -133,13 +137,15 @@ pub fn eval<'a>(input: &'a Node<'a>, env: &mut HashMap<&'a str, Value<'a>>) -> V
                                 )
                             }
                         }
-                        Value::PrimitiveType() => panic!("primitive is not callable"),
+                        Value::PrimitiveType(_) => panic!("primitive is not callable"),
                         Value::Function {
                             params,
                             returns,
                             body,
                         } => todo!("call function"),
                         Value::Unit => todo!("unit is not callable"),
+                        Value::OrInstance { typ, value } => todo!(),
+                        Value::PrimitiveInstance(_) => todo!(),
                     }
                 } else {
                     panic!("unknown command {command}")
