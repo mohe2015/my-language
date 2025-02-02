@@ -18,7 +18,7 @@ pub enum Type<'a> {
 
 #[derive(Debug, Clone)]
 pub enum Value<'a> {
-    PrimitiveType(&'a str),
+    PrimitiveType(),
     AndType(Vec<&'a str>),
     OrType(Vec<&'a str>),
     Function {
@@ -38,9 +38,8 @@ pub fn eval<'a>(input: &'a Node<'a>, env: &mut HashMap<&'a str, Value<'a>>) -> V
                 inner: NodeInner::Symbol("define-primitive"),
                 ..
             }) => {
-                assert_eq!(nodes.len(), 2);
-                let primitive: &str = (&nodes[1]).try_into().unwrap();
-                Value::PrimitiveType(primitive)
+                assert_eq!(nodes.len(), 1);
+                Value::PrimitiveType()
             }
             Some(Node {
                 inner: NodeInner::Symbol("define-type"),
@@ -113,6 +112,8 @@ pub fn eval<'a>(input: &'a Node<'a>, env: &mut HashMap<&'a str, Value<'a>>) -> V
                 assert_eq!(nodes.len(), 3);
                 let name: &str = (&nodes[1]).try_into().unwrap();
                 let value = &nodes[2];
+                let value = eval(value, &mut env.clone());
+                env.insert(name, value);
                 Value::Unit
             }
             Some(Node {
@@ -132,7 +133,7 @@ pub fn eval<'a>(input: &'a Node<'a>, env: &mut HashMap<&'a str, Value<'a>>) -> V
                                 )
                             }
                         }
-                        Value::PrimitiveType(_) => panic!("primitive is not callable"),
+                        Value::PrimitiveType() => panic!("primitive is not callable"),
                         Value::Function {
                             params,
                             returns,
