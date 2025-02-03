@@ -37,6 +37,7 @@ pub enum Value<'a> {
     DefinePrimitiveBuiltin,
     DefineTypeBuiltin,
     SetBuiltin,
+    NthBuiltin,
 }
 
 static PRIMITIVE_COUNTER: AtomicU64 = AtomicU64::new(0);
@@ -135,6 +136,16 @@ pub fn eval<'a>(input: &'a Node<'a>, env: &mut HashMap<&'a str, Value<'a>>) -> V
                     println!("set {name} {value:?}");
                     env.insert(name, value);
                     Value::Unit
+                }
+                Value::NthBuiltin => {
+                    assert_eq!(nodes.len(), 3);
+                    let value = eval(&nodes[1], &mut env.clone());
+                    if let Value::AndInstance { typ, value } = value {
+                        let index: &str = (&nodes[2]).try_into().unwrap();
+                        value[index.parse::<usize>().unwrap()].clone()
+                    } else {
+                        panic!("nth can only be called on instances of and types")
+                    }
                 }
             }
         }

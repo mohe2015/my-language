@@ -15,6 +15,7 @@ pub fn main() {
     env.insert("define-primitive", Value::DefinePrimitiveBuiltin);
     env.insert("define-type", Value::DefineTypeBuiltin);
     env.insert("define-function", Value::DefineFunctionBuiltin);
+    env.insert("nth", Value::NthBuiltin);
     for command in &parsed {
         println!("{:?}", eval(&command, &mut env));
     }
