@@ -22,9 +22,8 @@ pub enum Value<'a> {
         params: Vec<(&'a str, &'a str)>,
         body: &'a Node<'a>,
     },
-    Unit, // TODO special primitivetype?
+    Unit,
     OrInstance {
-        // TODO FIXME
         typ: Box<Value<'a>>,
         value: Box<Value<'a>>,
     },
@@ -32,7 +31,6 @@ pub enum Value<'a> {
         typ: Box<Value<'a>>,
         value: Vec<Value<'a>>,
     },
-    PrimitiveInstance(u64),
     DefineFunctionBuiltin,
     DefinePrimitiveBuiltin,
     DefineTypeBuiltin,
@@ -40,6 +38,15 @@ pub enum Value<'a> {
     NthBuiltin,
     IfEqBuiltin,
     LetBuiltin,
+}
+
+impl<'a> Value<'a> {
+    pub fn into_value(&self) -> &Value<'a> {
+        match self {
+            Value::OrInstance { typ, value } => value,
+            other => other,
+        }
+    }
 }
 
 // TODO implement let in some other way
@@ -87,7 +94,6 @@ pub fn eval<'a>(input: &'a Node<'a>, env: &mut HashMap<&'a str, Value<'a>>) -> V
                 }
                 Value::Unit => todo!("unit is not callable"),
                 Value::OrInstance { typ, value } => todo!(),
-                Value::PrimitiveInstance(_) => todo!(),
                 Value::AndInstance { typ, value } => todo!(),
                 Value::DefineFunctionBuiltin => {
                     assert_eq!(nodes.len(), 3);
@@ -161,9 +167,12 @@ pub fn eval<'a>(input: &'a Node<'a>, env: &mut HashMap<&'a str, Value<'a>>) -> V
                     let rhs = eval(&nodes[2], &mut env.clone());
                     let true_body = &nodes[3];
                     let false_body = &nodes[4];
-                    if lhs == rhs {
+                    //println!("{lhs:?} == {rhs:?}");
+                    if lhs.into_value() == rhs.into_value() {
+                        //println!("true");
                         eval(true_body, env)
                     } else {
+                        //println!("false");
                         eval(false_body, env)
                     }
                 }
