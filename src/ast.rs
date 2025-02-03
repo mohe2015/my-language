@@ -32,7 +32,7 @@ impl<'a> TryFrom<&'a Node<'a>> for &'a str {
     }
 }
 
-pub fn parse_toplevel(mut input: &str) -> Vec<Node> {
+pub fn parse_toplevel<'a>(mut input: &'a str) -> Vec<Node<'a>> {
     let mut elems = Vec::new();
     while !input.trim_ascii_start().is_empty() {
         let elem;

@@ -21,4 +21,11 @@ pub fn main() {
     for command in &parsed {
         println!("{:?}", eval(&command, &mut env));
     }
+    for line in std::io::stdin().lines() {
+        let line: &'static mut str = line.unwrap().leak();
+        let commands = parse_toplevel(line).leak();
+        for command in commands {
+            println!("{:?}", eval(command, &mut env));
+        }
+    }
 }
