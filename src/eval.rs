@@ -71,7 +71,11 @@ pub fn eval<'a>(input: &'a Node<'a>, env: &mut HashMap<&'a str, Value<'a>>) -> V
                         .iter()
                         .map(|elem| eval(&elem, &mut env.clone()))
                         .collect();
-                    assert_eq!(actual_params.len(), params.len());
+                    assert_eq!(
+                        actual_params.len(),
+                        params.len(),
+                        "{actual_params:?} does not match {params:?}"
+                    );
                     let mut env = env.clone();
                     params.iter().zip(actual_params).for_each(|(elem, value)| {
                         env.insert(elem.0, value);

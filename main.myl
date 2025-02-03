@@ -1,22 +1,23 @@
 (set 0 (define-primitive))
 (set 1 (define-primitive))
 (set bit (define-type (or 0 1)))
+(set pair (define-type (and bit bit)))
 (set add-bit-with-carry (define-function ((carry-in bit) (a bit) (b bit))
         (if= a 0
             (if= b 0
                 (if= carry-in 0
-                    (0 0)
-                    (0 1))
+                    (pair 0 0)
+                    (pair 0 1))
                 (if= carry-in 0
-                    (0 1)
-                    (1 0)))
+                    (pair 0 1)
+                    (pair 1 0)))
             (if= b 0
                 (if= carry-in 0
-                    (0 1)
-                    (1 0))
+                    (pair 0 1)
+                    (pair 1 0))
                 (if= carry-in 0
-                    (1 0)
-                    (1 1))))))
+                    (pair 1 0)
+                    (pair 1 1))))))
 (set byte (define-type (and bit bit bit bit bit bit bit bit)))
 (set add-byte (define-function ((a byte) (b byte))
     ((define-function ((carry-out-0 bit) (result bit-0))
