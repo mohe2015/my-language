@@ -20,8 +20,6 @@ pub enum Value<'a> {
     Function {
         /// (name type)
         params: Vec<(&'a str, &'a str)>,
-        /// (name type)
-        returns: Vec<(&'a str, &'a str)>,
         body: &'a Node<'a>,
     },
     Unit, // TODO special primitivetype?
@@ -83,18 +81,7 @@ pub fn eval<'a>(input: &'a Node<'a>, env: &mut HashMap<&'a str, Value<'a>>) -> V
                 inner: NodeInner::Symbol("define-function"),
                 ..
             }) => {
-                assert_eq!(nodes.len(), 4);
-                let returns: &'a Vec<Node<'a>> = (&nodes[1]).try_into().unwrap();
-                let returns: Vec<(&str, &str)> = returns
-                    .iter()
-                    .map(|elem| match &elem.inner {
-                        NodeInner::List(list) => (
-                            (&list[0]).try_into().unwrap(),
-                            (&list[1]).try_into().unwrap(),
-                        ),
-                        NodeInner::Symbol(_) => todo!(),
-                    })
-                    .collect();
+                assert_eq!(nodes.len(), 3);
                 let params: &'a Vec<Node<'a>> = (&nodes[2]).try_into().unwrap();
                 let params: Vec<(&str, &str)> = params
                     .iter()
@@ -107,11 +94,7 @@ pub fn eval<'a>(input: &'a Node<'a>, env: &mut HashMap<&'a str, Value<'a>>) -> V
                     })
                     .collect();
                 let body = &nodes[3];
-                Value::Function {
-                    params,
-                    returns,
-                    body,
-                }
+                Value::Function { params, body }
             }
             Some(Node {
                 inner: NodeInner::Symbol("set"),
@@ -149,11 +132,7 @@ pub fn eval<'a>(input: &'a Node<'a>, env: &mut HashMap<&'a str, Value<'a>>) -> V
                             }
                         }
                         Value::PrimitiveType(_) => panic!("primitive is not callable"),
-                        Value::Function {
-                            params,
-                            returns,
-                            body,
-                        } => {
+                        Value::Function { params, body } => {
                             let actual_params: Vec<Value<'a>> = nodes[1..]
                                 .iter()
                                 .map(|elem| eval(&elem, &mut env.clone()))
