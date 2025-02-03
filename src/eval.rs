@@ -39,7 +39,10 @@ pub enum Value<'a> {
     SetBuiltin,
     NthBuiltin,
     IfEqBuiltin,
+    LetBuiltin,
 }
+
+// TODO implement let in some other way
 
 static PRIMITIVE_COUNTER: AtomicU64 = AtomicU64::new(0);
 
@@ -163,6 +166,15 @@ pub fn eval<'a>(input: &'a Node<'a>, env: &mut HashMap<&'a str, Value<'a>>) -> V
                     } else {
                         eval(false_body, env)
                     }
+                }
+                Value::LetBuiltin => {
+                    assert_eq!(nodes.len(), 4, "{:?}", nodes);
+                    let binding: &'a Vec<Node<'a>> = (&nodes[1]).try_into().unwrap();
+                    let name: &str = (&binding[0]).try_into().unwrap();
+                    let bound_value = eval(&nodes[2], &mut env.clone());
+                    let mut env = env.clone();
+                    env.insert(&name, bound_value);
+                    eval(&nodes[3], &mut env)
                 }
             }
         }
