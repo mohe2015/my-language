@@ -82,7 +82,7 @@ pub fn eval<'a>(input: &'a Node<'a>, env: &mut HashMap<&'a str, Value<'a>>) -> V
                 ..
             }) => {
                 assert_eq!(nodes.len(), 3);
-                let params: &'a Vec<Node<'a>> = (&nodes[2]).try_into().unwrap();
+                let params: &'a Vec<Node<'a>> = (&nodes[1]).try_into().unwrap();
                 let params: Vec<(&str, &str)> = params
                     .iter()
                     .map(|elem| match &elem.inner {
@@ -93,7 +93,7 @@ pub fn eval<'a>(input: &'a Node<'a>, env: &mut HashMap<&'a str, Value<'a>>) -> V
                         NodeInner::Symbol(_) => todo!(),
                     })
                     .collect();
-                let body = &nodes[3];
+                let body = &nodes[2];
                 Value::Function { params, body }
             }
             Some(Node {
