@@ -1,10 +1,10 @@
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub struct Node<'a> {
     slice: &'a str,
     pub inner: NodeInner<'a>,
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub enum NodeInner<'a> {
     List(Vec<Node<'a>>),
     Symbol(&'a str),

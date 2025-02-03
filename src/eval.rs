@@ -12,7 +12,7 @@ pub enum Type<'a> {
     Primitive(),
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum Value<'a> {
     PrimitiveType(u64), // global id
     AndType(Vec<&'a str>),
@@ -38,6 +38,7 @@ pub enum Value<'a> {
     DefineTypeBuiltin,
     SetBuiltin,
     NthBuiltin,
+    IfEqBuiltin,
 }
 
 static PRIMITIVE_COUNTER: AtomicU64 = AtomicU64::new(0);
@@ -145,6 +146,18 @@ pub fn eval<'a>(input: &'a Node<'a>, env: &mut HashMap<&'a str, Value<'a>>) -> V
                         value[index.parse::<usize>().unwrap()].clone()
                     } else {
                         panic!("nth can only be called on instances of and types")
+                    }
+                }
+                Value::IfEqBuiltin => {
+                    assert_eq!(nodes.len(), 5, "{:?}", nodes);
+                    let lhs = eval(&nodes[1], &mut env.clone());
+                    let rhs = eval(&nodes[2], &mut env.clone());
+                    let true_body = &nodes[3];
+                    let false_body = &nodes[4];
+                    if lhs == rhs {
+                        eval(true_body, env)
+                    } else {
+                        eval(false_body, env)
                     }
                 }
             }
