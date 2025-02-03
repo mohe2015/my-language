@@ -22,6 +22,7 @@ pub fn main() {
         println!("{:?}", eval(&command, &mut env));
     }
     for line in std::io::stdin().lines() {
+        // TODO FIXME
         let line: &'static mut str = line.unwrap().leak();
         let commands = parse_toplevel(line).leak();
         for command in commands {
