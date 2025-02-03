@@ -153,7 +153,18 @@ pub fn eval<'a>(input: &'a Node<'a>, env: &mut HashMap<&'a str, Value<'a>>) -> V
                             params,
                             returns,
                             body,
-                        } => todo!("call function"),
+                        } => {
+                            let actual_params: Vec<Value<'a>> = nodes[1..]
+                                .iter()
+                                .map(|elem| eval(&elem, &mut env.clone()))
+                                .collect();
+                            assert_eq!(actual_params.len(), params.len());
+                            let mut env = env.clone();
+                            params.iter().zip(actual_params).for_each(|(elem, value)| {
+                                env.insert(elem.0, value);
+                            });
+                            eval(body, &mut env)
+                        }
                         Value::Unit => todo!("unit is not callable"),
                         Value::OrInstance { typ, value } => todo!(),
                         Value::PrimitiveInstance(_) => todo!(),
