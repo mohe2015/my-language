@@ -6,30 +6,30 @@ use std::{
 use crate::ast::{Node, NodeInner};
 
 #[derive(Debug)]
-pub enum Type<'a> {
-    And(Vec<&'a str>),
-    Or(Vec<&'a str>),
+pub enum Type {
+    And(Vec<String>),
+    Or(Vec<String>),
     Primitive(),
 }
 
 #[derive(Debug, Clone, PartialEq)]
-pub enum Value<'a> {
+pub enum Value {
     PrimitiveType(u64), // global id
-    AndType(Vec<&'a str>),
-    OrType(Vec<&'a str>),
+    AndType(Vec<String>),
+    OrType(Vec<String>),
     Function {
         /// (name type)
-        params: Vec<(&'a str, &'a str)>,
-        body: &'a Node<'a>,
+        params: Vec<(String, String)>,
+        body: Node,
     },
     Unit,
     OrInstance {
-        typ: Box<Value<'a>>,
-        value: Box<Value<'a>>,
+        typ: Box<Value>,
+        value: Box<Value>,
     },
     AndInstance {
-        typ: Box<Value<'a>>,
-        value: Vec<Value<'a>>,
+        typ: Box<Value>,
+        value: Vec<Value>,
     },
     DefineFunctionBuiltin,
     DefinePrimitiveBuiltin,
@@ -40,8 +40,8 @@ pub enum Value<'a> {
     LetBuiltin,
 }
 
-impl<'a> Value<'a> {
-    pub fn into_value(&self) -> &Value<'a> {
+impl Value {
+    pub fn into_value(&self) -> &Value {
         match self {
             Value::OrInstance { typ, value } => value,
             other => other,
@@ -53,13 +53,13 @@ impl<'a> Value<'a> {
 
 static PRIMITIVE_COUNTER: AtomicU64 = AtomicU64::new(0);
 
-pub fn eval<'a>(input: &'a Node<'a>, env: &mut HashMap<&'a str, Value<'a>>) -> Value<'a> {
+pub fn eval(input: &Node, env: &mut HashMap<String, Value>) -> Value {
     match &input.inner {
         crate::ast::NodeInner::List(nodes) => {
             let first = eval(nodes.first().unwrap(), env);
             match &first {
                 Value::AndType(items) => {
-                    let and_instances: Vec<Value<'a>> = nodes[1..]
+                    let and_instances: Vec<Value> = nodes[1..]
                         .iter()
                         .map(|elem| eval(&elem, &mut env.clone()))
                         .collect();
@@ -77,7 +77,7 @@ pub fn eval<'a>(input: &'a Node<'a>, env: &mut HashMap<&'a str, Value<'a>>) -> V
                 }
                 Value::PrimitiveType(_) => panic!("primitive is not callable"),
                 Value::Function { params, body } => {
-                    let actual_params: Vec<Value<'a>> = nodes[1..]
+                    let actual_params: Vec<Value> = nodes[1..]
                         .iter()
                         .map(|elem| eval(&elem, &mut env.clone()))
                         .collect();
@@ -88,7 +88,7 @@ pub fn eval<'a>(input: &'a Node<'a>, env: &mut HashMap<&'a str, Value<'a>>) -> V
                     );
                     let mut env = env.clone();
                     params.iter().zip(actual_params).for_each(|(elem, value)| {
-                        env.insert(elem.0, value);
+                        env.insert(elem.0.clone(), value);
                     });
                     eval(body, &mut env)
                 }
@@ -97,18 +97,18 @@ pub fn eval<'a>(input: &'a Node<'a>, env: &mut HashMap<&'a str, Value<'a>>) -> V
                 Value::AndInstance { typ, value } => todo!(),
                 Value::DefineFunctionBuiltin => {
                     assert_eq!(nodes.len(), 3);
-                    let params: &'a Vec<Node<'a>> = (&nodes[1]).try_into().unwrap();
-                    let params: Vec<(&str, &str)> = params
+                    let params: &Vec<Node> = (&nodes[1]).try_into().unwrap();
+                    let params: Vec<(String, String)> = params
                         .iter()
                         .map(|elem| match &elem.inner {
                             NodeInner::List(list) => (
-                                (&list[0]).try_into().unwrap(),
-                                (&list[1]).try_into().unwrap(),
+                                <&str>::try_from(&list[0]).unwrap().to_owned(),
+                                <&str>::try_from(&list[1]).unwrap().to_owned(),
                             ),
                             NodeInner::Symbol(_) => todo!(),
                         })
                         .collect();
-                    let body = &nodes[2];
+                    let body = nodes[2].clone();
                     Value::Function { params, body }
                 }
                 Value::DefinePrimitiveBuiltin => {
@@ -117,24 +117,24 @@ pub fn eval<'a>(input: &'a Node<'a>, env: &mut HashMap<&'a str, Value<'a>>) -> V
                 }
                 Value::DefineTypeBuiltin => {
                     assert_eq!(nodes.len(), 2);
-                    let definition: &'a Vec<Node<'a>> = (&nodes[1]).try_into().unwrap();
-                    match definition[0].inner {
-                        NodeInner::Symbol("and") => {
-                            let and_types: Vec<&str> = definition[1..]
+                    let definition: &Vec<Node> = (&nodes[1]).try_into().unwrap();
+                    match &definition[0].inner {
+                        NodeInner::Symbol(s) if s == "and" => {
+                            let and_types: Vec<String> = definition[1..]
                                 .iter()
                                 .map(|elem| match &elem.inner {
                                     NodeInner::List(nodes) => todo!(),
-                                    NodeInner::Symbol(name) => *name,
+                                    NodeInner::Symbol(name) => name.clone(),
                                 })
                                 .collect();
                             Value::AndType(and_types)
                         }
-                        NodeInner::Symbol("or") => {
-                            let and_types: Vec<&str> = definition[1..]
+                        NodeInner::Symbol(s) if s == "or" => {
+                            let and_types: Vec<String> = definition[1..]
                                 .iter()
                                 .map(|elem| match &elem.inner {
                                     NodeInner::List(nodes) => todo!(),
-                                    NodeInner::Symbol(name) => *name,
+                                    NodeInner::Symbol(name) => name.clone(),
                                 })
                                 .collect();
                             Value::OrType(and_types)
@@ -148,7 +148,7 @@ pub fn eval<'a>(input: &'a Node<'a>, env: &mut HashMap<&'a str, Value<'a>>) -> V
                     let value = &nodes[2];
                     let value = eval(value, &mut env.clone());
                     println!("set {name} {value:?}");
-                    env.insert(name, value);
+                    env.insert(name.to_owned(), value);
                     Value::Unit
                 }
                 Value::NthBuiltin => {
@@ -178,11 +178,11 @@ pub fn eval<'a>(input: &'a Node<'a>, env: &mut HashMap<&'a str, Value<'a>>) -> V
                 }
                 Value::LetBuiltin => {
                     assert_eq!(nodes.len(), 4, "{:?}", nodes);
-                    let binding: &'a Vec<Node<'a>> = (&nodes[1]).try_into().unwrap();
+                    let binding: &Vec<Node> = (&nodes[1]).try_into().unwrap();
                     let name: &str = (&binding[0]).try_into().unwrap();
                     let bound_value = eval(&nodes[2], &mut env.clone());
                     let mut env = env.clone();
-                    env.insert(&name, bound_value);
+                    env.insert(name.to_owned(), bound_value);
                     eval(&nodes[3], &mut env)
                 }
             }

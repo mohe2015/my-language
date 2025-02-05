@@ -1,19 +1,19 @@
-#[derive(Debug, PartialEq)]
-pub struct Node<'a> {
-    slice: &'a str,
-    pub inner: NodeInner<'a>,
+#[derive(Debug, PartialEq, Clone)]
+pub struct Node {
+    slice: String,
+    pub inner: NodeInner,
 }
 
-#[derive(Debug, PartialEq)]
-pub enum NodeInner<'a> {
-    List(Vec<Node<'a>>),
-    Symbol(&'a str),
+#[derive(Debug, PartialEq, Clone)]
+pub enum NodeInner {
+    List(Vec<Node>),
+    Symbol(String),
 }
 
-impl<'a> TryFrom<&'a Node<'a>> for &'a Vec<Node<'a>> {
+impl<'a> TryFrom<&'a Node> for &'a Vec<Node> {
     type Error = ();
 
-    fn try_from(value: &'a Node<'a>) -> Result<Self, Self::Error> {
+    fn try_from(value: &'a Node) -> Result<Self, Self::Error> {
         match &value.inner {
             NodeInner::List(nodes) => Ok(nodes),
             NodeInner::Symbol(_) => panic!(),
@@ -21,10 +21,10 @@ impl<'a> TryFrom<&'a Node<'a>> for &'a Vec<Node<'a>> {
     }
 }
 
-impl<'a> TryFrom<&'a Node<'a>> for &'a str {
+impl<'a> TryFrom<&'a Node> for &'a str {
     type Error = ();
 
-    fn try_from(value: &'a Node<'a>) -> Result<Self, Self::Error> {
+    fn try_from(value: &'a Node) -> Result<Self, Self::Error> {
         match &value.inner {
             NodeInner::List(nodes) => panic!(),
             NodeInner::Symbol(symbol) => Ok(symbol),
@@ -32,7 +32,7 @@ impl<'a> TryFrom<&'a Node<'a>> for &'a str {
     }
 }
 
-pub fn parse_toplevel<'a>(mut input: &'a str) -> Vec<Node<'a>> {
+pub fn parse_toplevel(mut input: &str) -> Vec<Node> {
     let mut elems = Vec::new();
     while !input.trim_ascii_start().is_empty() {
         let elem;
@@ -65,7 +65,7 @@ pub fn parse(input: &str) -> (&str, Node) {
         input = &input[1..];
         (input, Node {
             inner: NodeInner::List(elems),
-            slice: &list_start[0..input.as_ptr() as usize - list_start.as_ptr() as usize],
+            slice: list_start[0..input.as_ptr() as usize - list_start.as_ptr() as usize].to_owned(),
         })
     } else {
         // parse one symbol but dont eat closing parenc
@@ -77,8 +77,8 @@ pub fn parse(input: &str) -> (&str, Node) {
             panic!("symbol must not be empty")
         }
         (rest, Node {
-            inner: NodeInner::Symbol(symbol),
-            slice: symbol,
+            inner: NodeInner::Symbol(symbol.to_owned()),
+            slice: symbol.to_owned(),
         })
     }
 }
