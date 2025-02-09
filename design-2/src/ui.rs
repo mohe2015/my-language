@@ -1,4 +1,3 @@
-// ANCHOR: all
 use ratatui::{
     layout::{Constraint, Direction, Layout, Rect},
     style::{Color, Style},
@@ -9,11 +8,8 @@ use ratatui::{
 
 use crate::app::{App, CurrentScreen, CurrentlyEditing};
 
-// ANCHOR: method_sig
 pub fn ui(frame: &mut Frame, app: &App) {
-    // ANCHOR_END: method_sig
     // Create the layout sections.
-    // ANCHOR: ui_layout
     let chunks = Layout::default()
         .direction(Direction::Vertical)
         .constraints([
@@ -22,9 +18,7 @@ pub fn ui(frame: &mut Frame, app: &App) {
             Constraint::Length(3),
         ])
         .split(frame.area());
-    // ANCHOR_END: ui_layout
 
-    // ANCHOR: title_paragraph
     let title_block = Block::default()
         .borders(Borders::ALL)
         .style(Style::default());
@@ -36,8 +30,6 @@ pub fn ui(frame: &mut Frame, app: &App) {
     .block(title_block);
 
     frame.render_widget(title, chunks[0]);
-    // ANCHOR_END: title_paragraph
-    // ANCHOR: key_value_list
     let mut list_items = Vec::<ListItem>::new();
 
     for key in app.pairs.keys() {
@@ -50,8 +42,6 @@ pub fn ui(frame: &mut Frame, app: &App) {
     let list = List::new(list_items);
 
     frame.render_widget(list, chunks[1]);
-    // ANCHOR_END: key_value_list
-    // ANCHOR: lower_navigation_current_screen
     let current_navigation_text = vec![
         // The first half of the text
         match app.current_screen {
@@ -83,9 +73,7 @@ pub fn ui(frame: &mut Frame, app: &App) {
 
     let mode_footer = Paragraph::new(Line::from(current_navigation_text))
         .block(Block::default().borders(Borders::ALL));
-    // ANCHOR_END: lower_navigation_current_screen
 
-    // ANCHOR: lower_navigation_key_hint
     let current_keys_hint = {
         match app.current_screen {
             CurrentScreen::Main => Span::styled(
@@ -105,21 +93,15 @@ pub fn ui(frame: &mut Frame, app: &App) {
 
     let key_notes_footer =
         Paragraph::new(Line::from(current_keys_hint)).block(Block::default().borders(Borders::ALL));
-    // ANCHOR_END: lower_navigation_key_hint
 
-    // ANCHOR: lower_navigation_layout
     let footer_chunks = Layout::default()
         .direction(Direction::Horizontal)
         .constraints([Constraint::Percentage(50), Constraint::Percentage(50)])
         .split(chunks[2]);
-    // ANCHOR_END: lower_navigation_layout
 
-    // ANCHOR: lower_navigation_rendering
     frame.render_widget(mode_footer, footer_chunks[0]);
     frame.render_widget(key_notes_footer, footer_chunks[1]);
-    // ANCHOR_END: lower_navigation_rendering
 
-    // ANCHOR: editing_popup
     if let Some(editing) = &app.currently_editing {
         let popup_block = Block::default()
             .title("Enter a new key-value pair")
@@ -128,17 +110,13 @@ pub fn ui(frame: &mut Frame, app: &App) {
 
         let area = centered_rect(60, 25, frame.area());
         frame.render_widget(popup_block, area);
-        // ANCHOR_END: editing_popup
 
-        // ANCHOR: popup_layout
         let popup_chunks = Layout::default()
             .direction(Direction::Horizontal)
             .margin(1)
             .constraints([Constraint::Percentage(50), Constraint::Percentage(50)])
             .split(area);
-        // ANCHOR_END: popup_layout
 
-        // ANCHOR: key_value_blocks
         let mut key_block = Block::default().title("Key").borders(Borders::ALL);
         let mut value_block = Block::default().title("Value").borders(Borders::ALL);
 
@@ -155,9 +133,7 @@ pub fn ui(frame: &mut Frame, app: &App) {
         let value_text = Paragraph::new(app.value_input.clone()).block(value_block);
         frame.render_widget(value_text, popup_chunks[1]);
     }
-    // ANCHOR_END: key_value_blocks
 
-    // ANCHOR: exit_screen
     if let CurrentScreen::Exiting = app.current_screen {
         frame.render_widget(Clear, frame.area()); //this clears the entire screen and anything already drawn
         let popup_block = Block::default()
@@ -177,10 +153,8 @@ pub fn ui(frame: &mut Frame, app: &App) {
         let area = centered_rect(60, 25, frame.area());
         frame.render_widget(exit_paragraph, area);
     }
-    // ANCHOR_END: exit_screen
 }
 
-// ANCHOR: centered_rect
 /// helper function to create a centered rect using up certain percentage of the available rect `r`
 fn centered_rect(percent_x: u16, percent_y: u16, r: Rect) -> Rect {
     // Cut the given rectangle into three vertical pieces
@@ -203,6 +177,3 @@ fn centered_rect(percent_x: u16, percent_y: u16, r: Rect) -> Rect {
         ])
         .split(popup_layout[1])[1] // Return the middle chunk
 }
-// ANCHOR_END: centered_rect
-
-// ANCHOR_END: all
