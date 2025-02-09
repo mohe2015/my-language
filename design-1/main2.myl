@@ -1,0 +1,46 @@
+(set 0 (define-primitive))
+(set 1 (define-primitive))
+(set bit (define-type (or 0 1)))
+(set pair (define-type (and bit bit)))
+(set define-typed-function (define-transformation params
+    (foreach params
+        ())
+))
+(set let (define-transformation (binding-name binding-value) body
+    ((define-function (symbol binding-name) body) (eval binding-value))
+))
+
+(set add-bit-with-carry (define-typed-function ((carry-in bit) (a bit) (b bit))
+        (if= a 0
+            (if= b 0
+                (if= carry-in 0
+                    (pair 0 0)
+                    (pair 0 1))
+                (if= carry-in 0
+                    (pair 0 1)
+                    (pair 1 0)))
+            (if= b 0
+                (if= carry-in 0
+                    (pair 0 1)
+                    (pair 1 0))
+                (if= carry-in 0
+                    (pair 1 0)
+                    (pair 1 1))))))
+(set byte (define-type (and bit bit bit bit bit bit bit bit)))
+(set add-byte (define-function ((a byte) (b byte))
+    (let (index-0 pair) (add-bit-with-carry 0 (nth a 0) (nth b 0))
+        (let (index-1 pair) (add-bit-with-carry (nth index-0 0) (nth a 1) (nth b 1))
+            (let (index-2 pair) (add-bit-with-carry (nth index-1 0) (nth a 2) (nth b 2))
+                (let (index-3 pair) (add-bit-with-carry (nth index-2 0) (nth a 3) (nth b 3))
+                    (let (index-4 pair) (add-bit-with-carry (nth index-3 0) (nth a 4) (nth b 4))
+                        (let (index-5 pair) (add-bit-with-carry (nth index-4 0) (nth a 5) (nth b 5))
+                            (let (index-6 pair) (add-bit-with-carry (nth index-5 0) (nth a 6) (nth b 6))
+                                (let (index-7 pair) (add-bit-with-carry (nth index-6 0) (nth a 7) (nth b 7))
+                                    (byte (nth index-0 1) (nth index-1 1) (nth index-2 1) (nth index-3 1) (nth index-4 1) (nth index-5 1) (nth index-6 1) (nth index-7 1))))))))))))
+(set int4 (define-type (and byte byte byte byte)))
+(set test1 (bit 0))
+(set test2 (bit 1))
+(set test3 (byte (bit 0) (bit 0) (bit 0) (bit 0) (bit 0) (bit 0) (bit 0) (bit 1)))
+(add-bit-with-carry (bit 0) (bit 1) (bit 1))
+(set result (add-byte (byte 1 0 0 0 0 0 0 0) (byte 1 0 0 0 0 0 0 0)))
+result
