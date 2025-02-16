@@ -51,7 +51,7 @@ impl App {
 
     fn run_app<B: Backend>(&mut self, terminal: &mut Terminal<B>) -> io::Result<bool> {
         loop {
-            terminal.draw(|f| ui(f))?;
+            terminal.draw(|f| self.ui(f))?;
     
             if let Event::Key(key) = event::read()? {
                 if key.kind == event::KeyEventKind::Release {
