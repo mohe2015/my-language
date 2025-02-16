@@ -9,43 +9,36 @@ use ratatui::{
     }, style::{Color, Style}, text::{Line, Span}, Frame, Terminal
 };
 
-pub enum AST {
+pub enum ASTInner<T> {
     Integer(u64),
     Double(f64),
-    Add(Vec<AST>),
-    Multiply(Vec<AST>)
+    Add(Vec<AST<T>>),
+    Multiply(Vec<AST<T>>)
 }
 
-pub enum CursorASTInner {
-    Integer(u64),
-    Double(f64),
-    Add(Vec<CursorAST>),
-    Multiply(Vec<CursorAST>)
+pub struct AST<T> {
+    auxiliary: T,
+    inner: ASTInner<T>
 }
 
-pub struct CursorAST {
-    cursor: bool,
-    inner: CursorASTInner
-}
-
-impl CursorAST {
+impl AST<bool> {
     pub fn render(&self) -> Vec<Span> {
-        let style = if self.cursor {
+        let style = if self.auxiliary {
             Style::new().fg(Color::Black).bg(Color::White)
         } else {
             Style::new().fg(Color::White).bg(Color::Black)
         };
         match &self.inner {
-            CursorASTInner::Integer(value) => vec![Span::styled(value.to_string(), style)],
-            CursorASTInner::Double(value) => vec![Span::styled(value.to_string(), style)],
-            CursorASTInner::Add(asts) => std::iter::once(Span::styled("(+ ", style)).chain(asts.iter().flat_map(|a| a.render())).chain(std::iter::once(Span::styled(")", style))).collect(),
-            CursorASTInner::Multiply(asts) => std::iter::once(Span::styled("(* ", style)).chain(asts.iter().flat_map(|a| a.render())).chain(std::iter::once(Span::styled(")", style))).collect(),
+            ASTInner::Integer(value) => vec![Span::styled(value.to_string(), style)],
+            ASTInner::Double(value) => vec![Span::styled(value.to_string(), style)],
+            ASTInner::Add(asts) => std::iter::once(Span::styled("(+ ", style)).chain(asts.iter().flat_map(|a| a.render())).chain(std::iter::once(Span::styled(")", style))).collect(),
+            ASTInner::Multiply(asts) => std::iter::once(Span::styled("(* ", style)).chain(asts.iter().flat_map(|a| a.render())).chain(std::iter::once(Span::styled(")", style))).collect(),
         }
     }
 }
 
 pub struct App {
-    ast: CursorAST
+    ast: AST<bool>
 }
 
 impl App {
@@ -88,11 +81,11 @@ fn main() -> Result<(), Box<dyn Error>> {
     let mut terminal = Terminal::new(backend)?;
 
     let mut app = App {
-        ast: CursorAST {
-            cursor: false,
-            inner: CursorASTInner::Add(vec![CursorAST {
-                cursor: true,
-                inner: CursorASTInner::Integer(5)
+        ast: AST {
+            auxiliary: false,
+            inner: ASTInner::Add(vec![AST {
+                auxiliary: true,
+                inner: ASTInner::Integer(5)
             }])
         }
     };
