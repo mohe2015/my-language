@@ -42,7 +42,7 @@ impl AST<bool> {
                 )
                 .chain(std::iter::once(Span::styled(")", style)))
                 .collect(),
-            ASTInner::Multiply(asts) => std::iter::once(Span::styled("(* ", style))
+            ASTInner::Multiply(asts) => std::iter::once(Span::styled("(*", style))
                 .chain(
                     asts.iter()
                         .flat_map(|a| std::iter::once(Span::raw(" ")).chain(a.render())),
@@ -152,6 +152,29 @@ impl AST<bool> {
             }
         }
     }
+
+    pub fn insert(&mut self) {
+        match &mut self.inner {
+            ASTInner::Integer(_) => {}
+            ASTInner::Double(_) => {}
+            ASTInner::Add(asts) => {
+                for i in (0..asts.len() - 1).rev() {
+                    if asts[i].auxiliary {
+                        asts[i].auxiliary = false;
+                        asts[i + 1].auxiliary = true;
+                    }
+                }
+            }
+            ASTInner::Multiply(asts) => {
+                for i in (0..asts.len() - 1).rev() {
+                    if asts[i].auxiliary {
+                        asts[i].auxiliary = false;
+                        asts[i + 1].auxiliary = true;
+                    }
+                }
+            }
+        }
+    }
 }
 
 pub struct App {
@@ -184,7 +207,9 @@ impl App {
                     KeyCode::Delete => {
                         self.ast.delete_right();
                     }
-                    KeyCode::Char('i') => {}
+                    KeyCode::Char('i') => {
+                        self.ast.insert();
+                    }
                     _ => {}
                 }
             }
@@ -216,10 +241,19 @@ fn main() -> Result<(), Box<dyn Error>> {
                 },
                 AST {
                     auxiliary: false,
-                    inner: ASTInner::Integer(6),
+                    inner: ASTInner::Multiply(vec![
+                        AST {
+                            auxiliary: false,
+                            inner: ASTInner::Integer(5),
+                        },
+                        AST {
+                            auxiliary: true,
+                            inner: ASTInner::Integer(7),
+                        },
+                    ])
                 },
                 AST {
-                    auxiliary: true,
+                    auxiliary: false,
                     inner: ASTInner::Integer(7),
                 },
             ]),
