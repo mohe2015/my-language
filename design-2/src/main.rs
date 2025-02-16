@@ -18,7 +18,7 @@ pub enum AST {
 pub enum CursorASTInner {
     Integer(u64),
     Double(f64),
-    Add(Vec<AST>),
+    Add(Vec<CursorAST>),
     Multiply(Vec<CursorAST>)
 }
 
@@ -27,15 +27,32 @@ pub struct CursorAST {
     inner: CursorASTInner
 }
 
-pub fn ui(frame: &mut Frame) {
-    let span1 = Span::styled("(", Style::new().fg(Color::Black).bg(Color::White));
-    let span2 = Span::styled("Hello", Style::new().fg(Color::White).bg(Color::Black));
-    let line = Line::from(vec![
-        span1,
-        span2,
-    ]);
+impl CursorAST {
+    pub fn render(&self) -> Vec<Span> {
+        let style = if self.cursor {
+            Style::new().fg(Color::Black).bg(Color::White)
+        } else {
+            Style::new().fg(Color::White).bg(Color::Black)
+        };
+        match &self.inner {
+            CursorASTInner::Integer(value) => vec![Span::styled(value.to_string(), style)],
+            CursorASTInner::Double(value) => vec![Span::styled(value.to_string(), style)],
+            CursorASTInner::Add(asts) => std::iter::once(Span::styled("(+ ", style)).chain(asts.iter().flat_map(|a| a.render())).chain(std::iter::once(Span::styled(")", style))).collect(),
+            CursorASTInner::Multiply(asts) => std::iter::once(Span::styled("(* ", style)).chain(asts.iter().flat_map(|a| a.render())).chain(std::iter::once(Span::styled(")", style))).collect(),
+        }
+    }
+}
 
-    frame.render_widget(line, frame.area());
+pub fn ui(frame: &mut Frame) {
+    let ast = CursorAST {
+        cursor: false,
+        inner: CursorASTInner::Add(vec![CursorAST {
+            cursor: true,
+            inner: CursorASTInner::Integer(5)
+        }])
+    };
+
+    frame.render_widget(Line::from(ast.render()), frame.area());
 }
 
 // store the code as structured data in a file and have a custom editor to edit this code
