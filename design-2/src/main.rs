@@ -56,20 +56,13 @@ impl AST<bool> {
         match &mut self.inner {
             ASTInner::Integer(_) => {}
             ASTInner::Double(_) => {}
-            ASTInner::Add(asts) => {
+            ASTInner::Add(asts) | ASTInner::Multiply(asts) => {
                 for i in 1..asts.len() {
                     if asts[i].auxiliary {
                         asts[i].auxiliary = false;
                         asts[i - 1].auxiliary = true;
                     }
-                }
-            }
-            ASTInner::Multiply(asts) => {
-                for i in 1..asts.len() {
-                    if asts[i].auxiliary {
-                        asts[i].auxiliary = false;
-                        asts[i - 1].auxiliary = true;
-                    }
+                    asts[i].left();
                 }
             }
         }
@@ -79,20 +72,13 @@ impl AST<bool> {
         match &mut self.inner {
             ASTInner::Integer(_) => {}
             ASTInner::Double(_) => {}
-            ASTInner::Add(asts) => {
+            ASTInner::Add(asts) | ASTInner::Multiply(asts) => {
                 for i in (0..asts.len() - 1).rev() {
                     if asts[i].auxiliary {
                         asts[i].auxiliary = false;
                         asts[i + 1].auxiliary = true;
                     }
-                }
-            }
-            ASTInner::Multiply(asts) => {
-                for i in (0..asts.len() - 1).rev() {
-                    if asts[i].auxiliary {
-                        asts[i].auxiliary = false;
-                        asts[i + 1].auxiliary = true;
-                    }
+                    asts[i].right();
                 }
             }
         }
@@ -116,6 +102,7 @@ impl AST<bool> {
                             asts[0].auxiliary = true;
                         }
                     }
+                    asts[i].delete_left();
                     if i == 0 {
                         break;
                     }
@@ -144,6 +131,7 @@ impl AST<bool> {
                             }
                         }
                     }
+                    asts[i].delete_right();
                     if i == 0 {
                         break;
                     }
@@ -163,6 +151,7 @@ impl AST<bool> {
                         asts[i].auxiliary = false;
                         asts[i + 1].auxiliary = true;
                     }
+                    asts[i].insert();
                 }
             }
             ASTInner::Multiply(asts) => {
@@ -171,6 +160,7 @@ impl AST<bool> {
                         asts[i].auxiliary = false;
                         asts[i + 1].auxiliary = true;
                     }
+                    asts[i].insert();
                 }
             }
         }
