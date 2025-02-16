@@ -9,6 +9,9 @@ use ratatui::{
 use crate::app::{App, CurrentScreen, CurrentlyEditing};
 
 pub fn ui(frame: &mut Frame, app: &App) {
+
+frame.render_widget(Span::styled("Hello", Style::new().fg(Color::Black)), frame.area());
+    /*
     // Create the layout sections.
     let chunks = Layout::default()
         .direction(Direction::Vertical)
@@ -152,7 +155,7 @@ pub fn ui(frame: &mut Frame, app: &App) {
 
         let area = centered_rect(60, 25, frame.area());
         frame.render_widget(exit_paragraph, area);
-    }
+    }*/
 }
 
 /// helper function to create a centered rect using up certain percentage of the available rect `r`

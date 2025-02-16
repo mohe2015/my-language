@@ -18,6 +18,9 @@ use crate::{
     ui::ui,
 };
 
+// store the code as structured data in a file and have a custom editor to edit this code
+// https://docs.rs/ratatui-core/0.1.0-alpha.2/ratatui_core/text/struct.Span.html
+
 fn main() -> Result<(), Box<dyn Error>> {
     // setup terminal
     enable_raw_mode()?;
@@ -59,6 +62,8 @@ fn run_app<B: Backend>(terminal: &mut Terminal<B>, app: &mut App) -> io::Result<
                 // Skip events that are not KeyEventKind::Press
                 continue;
             }
+            return Ok(true);
+            /*
             match app.current_screen {
                 CurrentScreen::Main => match key.code {
                     KeyCode::Char('e') => {
@@ -130,6 +135,7 @@ fn run_app<B: Backend>(terminal: &mut Terminal<B>, app: &mut App) -> io::Result<
                 }
                 _ => {}
             }
+            */
         }
     }
 }
