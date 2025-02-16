@@ -26,8 +26,8 @@ pub struct AST<T> {
 }
 
 impl AST<bool> {
-    pub fn render(&self) -> Vec<Span> {
-        let style = if self.auxiliary {
+    pub fn render(&self, highlight: bool) -> Vec<Span> {
+        let style = if self.auxiliary || highlight {
             Style::new().fg(Color::Black).bg(Color::White)
         } else {
             Style::new().fg(Color::White)
@@ -38,14 +38,14 @@ impl AST<bool> {
             ASTInner::Add(asts) => std::iter::once(Span::styled("(+", style))
                 .chain(
                     asts.iter()
-                        .flat_map(|a| std::iter::once(Span::raw(" ")).chain(a.render())),
+                        .flat_map(|a| std::iter::once(Span::styled(" ", style)).chain(a.render(self.auxiliary || highlight))),
                 )
                 .chain(std::iter::once(Span::styled(")", style)))
                 .collect(),
             ASTInner::Multiply(asts) => std::iter::once(Span::styled("(*", style))
                 .chain(
                     asts.iter()
-                        .flat_map(|a| std::iter::once(Span::raw(" ")).chain(a.render())),
+                        .flat_map(|a| std::iter::once(Span::styled(" ", style)).chain(a.render(self.auxiliary || highlight))),
                 )
                 .chain(std::iter::once(Span::styled(")", style)))
                 .collect(),
@@ -79,6 +79,38 @@ impl AST<bool> {
                         asts[i + 1].auxiliary = true;
                     }
                     asts[i].right();
+                }
+            }
+        }
+    }
+
+    pub fn up(&mut self) {
+        match &mut self.inner {
+            ASTInner::Integer(_) => {}
+            ASTInner::Double(_) => {}
+            ASTInner::Add(asts) | ASTInner::Multiply(asts) => {
+                for i in 0..asts.len() {
+                    if asts[i].auxiliary {
+                        asts[i].auxiliary = false;
+                        self.auxiliary = true;
+                    }
+                    asts[i].up();
+                }
+            }
+        }
+    }
+
+    pub fn down(&mut self) {
+        match &mut self.inner {
+            ASTInner::Integer(_) => {}
+            ASTInner::Double(_) => {}
+            ASTInner::Add(asts) | ASTInner::Multiply(asts) => {
+                for i in (0..asts.len() - 1).rev() {
+                    if asts[i].auxiliary {
+                        asts[i].auxiliary = false;
+                        asts[i + 1].auxiliary = true;
+                    }
+                    asts[i].down();
                 }
             }
         }
@@ -191,6 +223,12 @@ impl App {
                     KeyCode::Right => {
                         self.ast.right();
                     }
+                    KeyCode::Up => {
+                        self.ast.up();
+                    }
+                    KeyCode::Down => {
+                        self.ast.down();
+                    }
                     KeyCode::Backspace => {
                         self.ast.delete_left();
                     }
@@ -207,7 +245,7 @@ impl App {
     }
 
     pub fn ui(&self, frame: &mut Frame) {
-        frame.render_widget(Line::from(self.ast.render()), frame.area());
+        frame.render_widget(Line::from(self.ast.render(false)), frame.area());
     }
 }
 
