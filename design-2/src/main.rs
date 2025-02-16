@@ -1,5 +1,6 @@
 use std::{error::Error, io};
 
+use crossterm::event::KeyModifiers;
 use ratatui::{
     backend::{Backend, CrosstermBackend}, crossterm::{
         event::{self, DisableMouseCapture, EnableMouseCapture, Event, KeyCode, KeyEventKind},
@@ -49,7 +50,7 @@ pub struct App {
 
 impl App {
 
-    fn run_app<B: Backend>(&mut self, terminal: &mut Terminal<B>) -> io::Result<bool> {
+    fn run_app<B: Backend>(&mut self, terminal: &mut Terminal<B>) -> io::Result<()> {
         loop {
             terminal.draw(|f| self.ui(f))?;
     
@@ -58,9 +59,14 @@ impl App {
                     // Skip events that are not KeyEventKind::Press
                     continue;
                 }
+                match key.code {
+                    KeyCode::Char('c') if key.modifiers.contains(KeyModifiers::CONTROL) => {
+                        return Ok(())
+                    }
+                    KeyCode::Left => {
 
-                if key.code == KeyCode::Left {
-
+                    }
+                    _ => {}
                 }
             }
         }
