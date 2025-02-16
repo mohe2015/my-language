@@ -5,7 +5,7 @@ use ratatui::{
         event::{self, DisableMouseCapture, EnableMouseCapture, Event, KeyCode, KeyEventKind},
         execute,
         terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
-    }, style::{Color, Style}, text::Span, Frame, Terminal
+    }, style::{Color, Style}, text::{Line, Span}, Frame, Terminal
 };
 
 pub enum AST {
@@ -16,8 +16,14 @@ pub enum AST {
 }
 
 pub fn ui(frame: &mut Frame) {
+    let span1 = Span::styled("(", Style::new().fg(Color::Black).bg(Color::White));
+    let span2 = Span::styled("Hello", Style::new().fg(Color::White).bg(Color::Black));
+    let line = Line::from(vec![
+        span1,
+        span2,
+    ]);
 
-    frame.render_widget(Span::styled("Hello", Style::new().fg(Color::Black)), frame.area());
+    frame.render_widget(line, frame.area());
 }
 
 // store the code as structured data in a file and have a custom editor to edit this code
