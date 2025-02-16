@@ -206,8 +206,9 @@ impl AST<bool> {
                         } else if i == 0 && asts.len() > 0 {
                             asts[0].auxiliary = true;
                         }
+                    } else {
+                        asts[i].delete_left();
                     }
-                    asts[i].delete_left();
                     if i == 0 {
                         break;
                     }
@@ -236,8 +237,9 @@ impl AST<bool> {
                                 i -= 1; // skip
                             }
                         }
+                    } else {
+                        asts[i].delete_right();
                     }
-                    asts[i].delete_right();
                     if i == 0 {
                         break;
                     }
@@ -266,6 +268,23 @@ impl AST<bool> {
                     }
                     asts[i].insert();
                 }
+            }
+        }
+    }
+
+    pub fn map_selected(&mut self, mapper: &impl Fn(&ASTInner<bool>) -> ASTInner<bool>) {
+        if self.auxiliary {
+            self.inner = mapper(&self.inner);
+        }
+        match &mut self.inner {
+            ASTInner::Integer(_) => {}
+            ASTInner::Double(_) => {}
+            ASTInner::Placeholder => {}
+            ASTInner::Add(asts) => {
+                asts.iter_mut().for_each(|val| val.map_selected(mapper));
+            }
+            ASTInner::Multiply(asts) => {
+                asts.iter_mut().for_each(|val| val.map_selected(mapper));
             }
         }
     }
@@ -321,8 +340,17 @@ impl App {
                     KeyCode::Char(' ') => {
                         self.ast.insert();
                     }
-                    KeyCode::Char('0'..='9') => {
+                    KeyCode::Char(char @ '0'..='9') => {
                         // replace placeholders?
+                        self.ast.map_selected(&|input| match input {
+                            ASTInner::Integer(value) => {
+                                ASTInner::Integer(value * 10 + (char as u64 - '0' as u64))
+                            }
+                            ASTInner::Double(_) => todo!(),
+                            ASTInner::Add(asts) => todo!(),
+                            ASTInner::Multiply(asts) => todo!(),
+                            ASTInner::Placeholder => ASTInner::Integer(char as u64 - '0' as u64),
+                        });
                     }
                     KeyCode::Char('e') => {
                         // TODO edit
