@@ -35,6 +35,29 @@ impl AST<bool> {
             ASTInner::Multiply(asts) => std::iter::once(Span::styled("(* ", style)).chain(asts.iter().flat_map(|a| a.render())).chain(std::iter::once(Span::styled(")", style))).collect(),
         }
     }
+
+    pub fn left(&mut self) {
+        match &mut self.inner {
+            ASTInner::Integer(_) => {},
+            ASTInner::Double(_) => {},
+            ASTInner::Add(asts) => {
+                for i in 1..asts.len() {
+                    if asts[i].auxiliary {
+                        asts[i].auxiliary = false;
+                        asts[i-1].auxiliary = true;
+                    }
+                }
+            },
+            ASTInner::Multiply(asts) => {
+                for i in 1..asts.len() {
+                    if asts[i].auxiliary {
+                        asts[i].auxiliary = false;
+                        asts[i-1].auxiliary = true;
+                    }
+                }
+            },
+        }
+    }
 }
 
 pub struct App {
@@ -57,7 +80,7 @@ impl App {
                         return Ok(())
                     }
                     KeyCode::Left => {
-
+                        self.ast.left();
                     }
                     _ => {}
                 }
@@ -84,8 +107,14 @@ fn main() -> Result<(), Box<dyn Error>> {
         ast: AST {
             auxiliary: false,
             inner: ASTInner::Add(vec![AST {
-                auxiliary: true,
+                auxiliary: false,
                 inner: ASTInner::Integer(5)
+            }, AST {
+                auxiliary: false,
+                inner: ASTInner::Integer(6)
+            }, AST {
+                auxiliary: true,
+                inner: ASTInner::Integer(7)
             }])
         }
     };
