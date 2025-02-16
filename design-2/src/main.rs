@@ -123,11 +123,14 @@ impl AST<bool> {
             ASTInner::Double(_) => {}
             ASTInner::Add(asts) | ASTInner::Multiply(asts) => {
                 for i in (0..asts.len()).rev() {
-                    if i < asts.len() {
-                        asts[i].auxiliary = true;
-                    } else if asts.len() > 0 {
-                        let idx = asts.len() - 1;
-                        asts[idx].auxiliary = true;
+                    if asts[i].auxiliary {
+                        asts.remove(i);
+                        if i < asts.len() {
+                            asts[i].auxiliary = true;
+                        } else if asts.len() > 0 {
+                            let idx = asts.len() - 1;
+                            asts[idx].auxiliary = true;
+                        }
                     }
                 }
             }
