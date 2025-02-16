@@ -14,7 +14,8 @@ use ratatui::{
         execute,
         terminal::{EnterAlternateScreen, LeaveAlternateScreen, disable_raw_mode, enable_raw_mode},
     },
-    style::{Color, Style},
+    layout::{Constraint, Direction, Layout},
+    style::{Color, Style, Stylize},
     text::{Line, Span},
 };
 
@@ -23,6 +24,7 @@ pub enum ASTInner<T> {
     Double(f64),
     Add(Vec<AST<T>>),
     Multiply(Vec<AST<T>>),
+    Placeholder,
 }
 
 pub struct AST<T> {
@@ -96,6 +98,7 @@ impl AST<bool> {
             Style::new().fg(Color::White)
         };
         match &self.inner {
+            ASTInner::Placeholder => vec![Span::styled(" ", style.underlined())],
             ASTInner::Integer(value) => vec![Span::styled(value.to_string(), style)],
             ASTInner::Double(value) => vec![Span::styled(value.to_string(), style)],
             ASTInner::Add(asts) => std::iter::once(Span::styled("(+", style))
@@ -117,6 +120,7 @@ impl AST<bool> {
 
     pub fn left(&mut self) {
         match &mut self.inner {
+            ASTInner::Placeholder => {}
             ASTInner::Integer(_) => {}
             ASTInner::Double(_) => {}
             ASTInner::Add(asts) | ASTInner::Multiply(asts) => {
@@ -133,6 +137,7 @@ impl AST<bool> {
 
     pub fn right(&mut self) {
         match &mut self.inner {
+            ASTInner::Placeholder => {}
             ASTInner::Integer(_) => {}
             ASTInner::Double(_) => {}
             ASTInner::Add(asts) | ASTInner::Multiply(asts) => {
@@ -149,6 +154,7 @@ impl AST<bool> {
 
     pub fn up(&mut self) {
         match &mut self.inner {
+            ASTInner::Placeholder => {}
             ASTInner::Integer(_) => {}
             ASTInner::Double(_) => {}
             ASTInner::Add(asts) | ASTInner::Multiply(asts) => {
@@ -165,6 +171,7 @@ impl AST<bool> {
 
     pub fn down(&mut self) {
         match &mut self.inner {
+            ASTInner::Placeholder => {}
             ASTInner::Integer(_) => {}
             ASTInner::Double(_) => {}
             ASTInner::Add(asts) | ASTInner::Multiply(asts) => {
@@ -183,6 +190,7 @@ impl AST<bool> {
 
     pub fn delete_left(&mut self) {
         match &mut self.inner {
+            ASTInner::Placeholder => {}
             ASTInner::Integer(_) => {}
             ASTInner::Double(_) => {}
             ASTInner::Multiply(asts) | ASTInner::Add(asts) => {
@@ -211,6 +219,7 @@ impl AST<bool> {
 
     pub fn delete_right(&mut self) {
         match &mut self.inner {
+            ASTInner::Placeholder => {}
             ASTInner::Integer(_) => {}
             ASTInner::Double(_) => {}
             ASTInner::Add(asts) | ASTInner::Multiply(asts) => {
@@ -240,6 +249,7 @@ impl AST<bool> {
 
     pub fn insert(&mut self) {
         match &mut self.inner {
+            ASTInner::Placeholder => {}
             ASTInner::Integer(_) => {}
             ASTInner::Double(_) => {}
             ASTInner::Add(asts) | ASTInner::Multiply(asts) => {
@@ -250,7 +260,7 @@ impl AST<bool> {
                             i + 1,
                             AST {
                                 auxiliary: true,
-                                inner: ASTInner::Integer(42),
+                                inner: ASTInner::Placeholder,
                             },
                         );
                     }
@@ -262,6 +272,7 @@ impl AST<bool> {
 
     pub fn eval(&mut self) -> Value {
         match &mut self.inner {
+            ASTInner::Placeholder => panic!(),
             ASTInner::Integer(value) => Value::Integer(*value),
             ASTInner::Double(value) => Value::Double(*value),
             ASTInner::Add(asts) => asts.iter_mut().map(|e| e.eval()).sum(),
@@ -272,6 +283,7 @@ impl AST<bool> {
 
 pub struct App {
     ast: AST<bool>,
+    status: String,
 }
 
 impl App {
@@ -306,11 +318,17 @@ impl App {
                     KeyCode::Delete => {
                         self.ast.delete_right();
                     }
-                    KeyCode::Char('i') => {
+                    KeyCode::Char(' ') => {
                         self.ast.insert();
                     }
+                    KeyCode::Char('0'..='9') => {
+                        // replace placeholders?
+                    }
                     KeyCode::Char('e') => {
-                        println!("{:?}", self.ast.eval());
+                        // TODO edit
+                    }
+                    KeyCode::Enter => {
+                        self.status = format!("evaluated to {:?}", self.ast.eval());
                     }
                     _ => {}
                 }
@@ -319,7 +337,13 @@ impl App {
     }
 
     pub fn ui(&self, frame: &mut Frame) {
-        frame.render_widget(Line::from(self.ast.render(false)), frame.area());
+        let layout = Layout::default()
+            .direction(Direction::Vertical)
+            .constraints(vec![Constraint::Percentage(100), Constraint::Length(1)])
+            .split(frame.area());
+
+        frame.render_widget(Line::from(self.ast.render(false)), layout[0]);
+        frame.render_widget(Line::raw(self.status.clone()), layout[1]);
     }
 }
 
@@ -331,6 +355,7 @@ pub fn main() -> io::Result<()> {
     let mut tui = init_tui()?;
     tui.draw(|frame| frame.render_widget(Span::from("Hello, world!"), frame.area()))?;
     let mut app = App {
+        status: "Hello world".to_owned(),
         ast: AST {
             auxiliary: false,
             inner: ASTInner::Add(vec![
