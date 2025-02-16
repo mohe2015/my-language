@@ -1,4 +1,8 @@
-use std::{error::Error, io};
+use std::{
+    error::Error,
+    io,
+    iter::{Product, Sum},
+};
 
 use crossterm::event::KeyModifiers;
 use ratatui::{
@@ -25,6 +29,64 @@ pub struct AST<T> {
     inner: ASTInner<T>,
 }
 
+#[derive(Debug)]
+pub enum Value {
+    Integer(u64),
+    Double(f64),
+}
+
+impl Sum for Value {
+    fn sum<I: Iterator<Item = Self>>(mut iter: I) -> Self {
+        let first = iter.next().unwrap();
+        match first {
+            Value::Integer(int) => Value::Integer(
+                std::iter::once(int)
+                    .chain(iter.map(|elem| {
+                        let Value::Integer(int) = elem else { panic!() };
+                        int
+                    }))
+                    .sum(),
+            ),
+            Value::Double(double) => Value::Double(
+                std::iter::once(double)
+                    .chain(iter.map(|elem| {
+                        let Value::Double(double) = elem else {
+                            panic!()
+                        };
+                        double
+                    }))
+                    .sum(),
+            ),
+        }
+    }
+}
+
+impl Product for Value {
+    fn product<I: Iterator<Item = Self>>(mut iter: I) -> Self {
+        let first = iter.next().unwrap();
+        match first {
+            Value::Integer(int) => Value::Integer(
+                std::iter::once(int)
+                    .chain(iter.map(|elem| {
+                        let Value::Integer(int) = elem else { panic!() };
+                        int
+                    }))
+                    .product(),
+            ),
+            Value::Double(double) => Value::Double(
+                std::iter::once(double)
+                    .chain(iter.map(|elem| {
+                        let Value::Double(double) = elem else {
+                            panic!()
+                        };
+                        double
+                    }))
+                    .product(),
+            ),
+        }
+    }
+}
+
 impl AST<bool> {
     pub fn render(&self, highlight: bool) -> Vec<Span> {
         let style = if self.auxiliary || highlight {
@@ -36,17 +98,17 @@ impl AST<bool> {
             ASTInner::Integer(value) => vec![Span::styled(value.to_string(), style)],
             ASTInner::Double(value) => vec![Span::styled(value.to_string(), style)],
             ASTInner::Add(asts) => std::iter::once(Span::styled("(+", style))
-                .chain(
-                    asts.iter()
-                        .flat_map(|a| std::iter::once(Span::styled(" ", style)).chain(a.render(self.auxiliary || highlight))),
-                )
+                .chain(asts.iter().flat_map(|a| {
+                    std::iter::once(Span::styled(" ", style))
+                        .chain(a.render(self.auxiliary || highlight))
+                }))
                 .chain(std::iter::once(Span::styled(")", style)))
                 .collect(),
             ASTInner::Multiply(asts) => std::iter::once(Span::styled("(*", style))
-                .chain(
-                    asts.iter()
-                        .flat_map(|a| std::iter::once(Span::styled(" ", style)).chain(a.render(self.auxiliary || highlight))),
-                )
+                .chain(asts.iter().flat_map(|a| {
+                    std::iter::once(Span::styled(" ", style))
+                        .chain(a.render(self.auxiliary || highlight))
+                }))
                 .chain(std::iter::once(Span::styled(")", style)))
                 .collect(),
         }
@@ -123,12 +185,12 @@ impl AST<bool> {
             ASTInner::Integer(_) => {}
             ASTInner::Double(_) => {}
             ASTInner::Multiply(asts) | ASTInner::Add(asts) => {
-                let mut i = asts.len()-1;
+                let mut i = asts.len() - 1;
                 loop {
                     if asts[i].auxiliary {
                         asts.remove(i);
                         if i > 0 && asts.len() > 0 {
-                            if !asts[i-1].auxiliary {
+                            if !asts[i - 1].auxiliary {
                                 asts[i - 1].auxiliary = true;
                                 i -= 1;
                             }
@@ -151,7 +213,7 @@ impl AST<bool> {
             ASTInner::Integer(_) => {}
             ASTInner::Double(_) => {}
             ASTInner::Add(asts) | ASTInner::Multiply(asts) => {
-                let mut i = asts.len()-1;
+                let mut i = asts.len() - 1;
                 loop {
                     if asts[i].auxiliary {
                         asts.remove(i);
@@ -179,24 +241,30 @@ impl AST<bool> {
         match &mut self.inner {
             ASTInner::Integer(_) => {}
             ASTInner::Double(_) => {}
-            ASTInner::Add(asts) => {
-                for i in (0..asts.len() - 1).rev() {
+            ASTInner::Add(asts) | ASTInner::Multiply(asts) => {
+                for i in (0..asts.len()).rev() {
                     if asts[i].auxiliary {
                         asts[i].auxiliary = false;
-                        asts[i + 1].auxiliary = true;
+                        asts.insert(
+                            i + 1,
+                            AST {
+                                auxiliary: true,
+                                inner: ASTInner::Integer(42),
+                            },
+                        );
                     }
                     asts[i].insert();
                 }
             }
-            ASTInner::Multiply(asts) => {
-                for i in (0..asts.len() - 1).rev() {
-                    if asts[i].auxiliary {
-                        asts[i].auxiliary = false;
-                        asts[i + 1].auxiliary = true;
-                    }
-                    asts[i].insert();
-                }
-            }
+        }
+    }
+
+    pub fn eval(&mut self) -> Value {
+        match &mut self.inner {
+            ASTInner::Integer(value) => Value::Integer(*value),
+            ASTInner::Double(value) => Value::Double(*value),
+            ASTInner::Add(asts) => asts.iter_mut().map(|e| e.eval()).sum(),
+            ASTInner::Multiply(asts) => asts.iter_mut().map(|e| e.eval()).product(),
         }
     }
 }
@@ -240,6 +308,9 @@ impl App {
                     KeyCode::Char('i') => {
                         self.ast.insert();
                     }
+                    KeyCode::Char('e') => {
+                        println!("{:?}", self.ast.eval());
+                    }
                     _ => {}
                 }
             }
@@ -280,7 +351,7 @@ fn main() -> Result<(), Box<dyn Error>> {
                             auxiliary: true,
                             inner: ASTInner::Integer(7),
                         },
-                    ])
+                    ]),
                 },
                 AST {
                     auxiliary: false,
