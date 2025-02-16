@@ -102,17 +102,32 @@ impl AST<bool> {
         match &mut self.inner {
             ASTInner::Integer(_) => {}
             ASTInner::Double(_) => {}
-            ASTInner::Add(asts) => {
+            ASTInner::Multiply(asts) | ASTInner::Add(asts) => {
                 for i in (0..asts.len()).rev() {
                     if asts[i].auxiliary {
                         asts.remove(i);
+                        if i > 0 && asts.len() > 0 {
+                            asts[i - 1].auxiliary = true;
+                        } else if i == 0 && asts.len() > 0 {
+                            asts[0].auxiliary = true;
+                        }
                     }
                 }
             }
-            ASTInner::Multiply(asts) => {
+        }
+    }
+
+    pub fn delete_right(&mut self) {
+        match &mut self.inner {
+            ASTInner::Integer(_) => {}
+            ASTInner::Double(_) => {}
+            ASTInner::Add(asts) | ASTInner::Multiply(asts) => {
                 for i in (0..asts.len()).rev() {
-                    if asts[i].auxiliary {
-                        asts.remove(i);
+                    if i < asts.len() {
+                        asts[i].auxiliary = true;
+                    } else if asts.len() > 0 {
+                        let idx = asts.len() - 1;
+                        asts[idx].auxiliary = true;
                     }
                 }
             }
