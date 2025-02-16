@@ -272,9 +272,9 @@ impl AST<bool> {
         }
     }
 
-    pub fn map_selected(&mut self, mapper: &impl Fn(&ASTInner<bool>) -> ASTInner<bool>) {
+    pub fn map_selected(&mut self, mapper: &impl Fn(&mut ASTInner<bool>)) {
         if self.auxiliary {
-            self.inner = mapper(&self.inner);
+            mapper(&mut self.inner);
         }
         match &mut self.inner {
             ASTInner::Integer(_) => {}
@@ -291,7 +291,7 @@ impl AST<bool> {
 
     pub fn eval(&mut self) -> Value {
         match &mut self.inner {
-            ASTInner::Placeholder => panic!(),
+            ASTInner::Placeholder => panic!("placeholder can't be evaluated"),
             ASTInner::Integer(value) => Value::Integer(*value),
             ASTInner::Double(value) => Value::Double(*value),
             ASTInner::Add(asts) => asts.iter_mut().map(|e| e.eval()).sum(),
@@ -341,15 +341,16 @@ impl App {
                         self.ast.insert();
                     }
                     KeyCode::Char(char @ '0'..='9') => {
-                        // replace placeholders?
                         self.ast.map_selected(&|input| match input {
                             ASTInner::Integer(value) => {
-                                ASTInner::Integer(value * 10 + (char as u64 - '0' as u64))
+                                *value = *value * 10 + (char as u64 - '0' as u64)
                             }
-                            ASTInner::Double(_) => todo!(),
-                            ASTInner::Add(asts) => todo!(),
-                            ASTInner::Multiply(asts) => todo!(),
-                            ASTInner::Placeholder => ASTInner::Integer(char as u64 - '0' as u64),
+                            ASTInner::Double(_) => {}
+                            ASTInner::Add(asts) => {}
+                            ASTInner::Multiply(asts) => {}
+                            ASTInner::Placeholder => {
+                                *input = ASTInner::Integer(char as u64 - '0' as u64)
+                            }
                         });
                     }
                     KeyCode::Char('e') => {
