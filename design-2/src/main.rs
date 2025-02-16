@@ -31,8 +31,8 @@ impl AST<bool> {
         match &self.inner {
             ASTInner::Integer(value) => vec![Span::styled(value.to_string(), style)],
             ASTInner::Double(value) => vec![Span::styled(value.to_string(), style)],
-            ASTInner::Add(asts) => std::iter::once(Span::styled("(+ ", style)).chain(asts.iter().flat_map(|a| a.render())).chain(std::iter::once(Span::styled(")", style))).collect(),
-            ASTInner::Multiply(asts) => std::iter::once(Span::styled("(* ", style)).chain(asts.iter().flat_map(|a| a.render())).chain(std::iter::once(Span::styled(")", style))).collect(),
+            ASTInner::Add(asts) => std::iter::once(Span::styled("(+", style)).chain(asts.iter().flat_map(|a| std::iter::once(Span::raw(" ")).chain(a.render()))).chain(std::iter::once(Span::styled(")", style))).collect(),
+            ASTInner::Multiply(asts) => std::iter::once(Span::styled("(* ", style)).chain(asts.iter().flat_map(|a| std::iter::once(Span::raw(" ")).chain(a.render()))).chain(std::iter::once(Span::styled(")", style))).collect(),
         }
     }
 
@@ -53,6 +53,29 @@ impl AST<bool> {
                     if asts[i].auxiliary {
                         asts[i].auxiliary = false;
                         asts[i-1].auxiliary = true;
+                    }
+                }
+            },
+        }
+    }
+    
+    pub fn right(&mut self) {
+        match &mut self.inner {
+            ASTInner::Integer(_) => {},
+            ASTInner::Double(_) => {},
+            ASTInner::Add(asts) => {
+                for i in (0..asts.len()-1).rev() {
+                    if asts[i].auxiliary {
+                        asts[i].auxiliary = false;
+                        asts[i+1].auxiliary = true;
+                    }
+                }
+            },
+            ASTInner::Multiply(asts) => {
+                for i in (0..asts.len()-1).rev() {
+                    if asts[i].auxiliary {
+                        asts[i].auxiliary = false;
+                        asts[i+1].auxiliary = true;
                     }
                 }
             },
@@ -81,6 +104,9 @@ impl App {
                     }
                     KeyCode::Left => {
                         self.ast.left();
+                    }
+                    KeyCode::Right => {
+                        self.ast.right();
                     }
                     _ => {}
                 }
