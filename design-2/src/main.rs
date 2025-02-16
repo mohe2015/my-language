@@ -15,6 +15,18 @@ pub enum AST {
     Multiply(Vec<AST>)
 }
 
+pub enum CursorASTInner {
+    Integer(u64),
+    Double(f64),
+    Add(Vec<AST>),
+    Multiply(Vec<CursorAST>)
+}
+
+pub struct CursorAST {
+    cursor: bool,
+    inner: CursorASTInner
+}
+
 pub fn ui(frame: &mut Frame) {
     let span1 = Span::styled("(", Style::new().fg(Color::Black).bg(Color::White));
     let span2 = Span::styled("Hello", Style::new().fg(Color::White).bg(Color::Black));
