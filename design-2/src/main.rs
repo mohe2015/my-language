@@ -1,7 +1,8 @@
 use std::{
     error::Error,
-    io,
+    io::{self, stdout},
     iter::{Product, Sum},
+    panic::{set_hook, take_hook},
 };
 
 use crossterm::event::KeyModifiers;
@@ -325,13 +326,10 @@ impl App {
 // store the code as structured data in a file and have a custom editor to edit this code
 // https://docs.rs/ratatui-core/0.1.0-alpha.2/ratatui_core/text/struct.Span.html
 
-fn main() -> Result<(), Box<dyn Error>> {
-    enable_raw_mode()?;
-    let mut stderr = io::stderr();
-    execute!(stderr, EnterAlternateScreen, EnableMouseCapture)?;
-    let backend = CrosstermBackend::new(stderr);
-    let mut terminal = Terminal::new(backend)?;
-
+pub fn main() -> io::Result<()> {
+    init_panic_hook();
+    let mut tui = init_tui()?;
+    tui.draw(|frame| frame.render_widget(Span::from("Hello, world!"), frame.area()))?;
     let mut app = App {
         ast: AST {
             auxiliary: false,
@@ -360,15 +358,28 @@ fn main() -> Result<(), Box<dyn Error>> {
             ]),
         },
     };
-    let res = app.run_app(&mut terminal);
+    app.run_app(&mut tui)?;
+    restore_tui()?;
+    Ok(())
+}
 
+pub fn init_panic_hook() {
+    let original_hook = take_hook();
+    set_hook(Box::new(move |panic_info| {
+        // intentionally ignore errors here since we're already in a panic
+        let _ = restore_tui();
+        original_hook(panic_info);
+    }));
+}
+
+pub fn init_tui() -> io::Result<Terminal<impl Backend>> {
+    enable_raw_mode()?;
+    execute!(stdout(), EnterAlternateScreen)?;
+    Terminal::new(CrosstermBackend::new(stdout()))
+}
+
+pub fn restore_tui() -> io::Result<()> {
     disable_raw_mode()?;
-    execute!(
-        terminal.backend_mut(),
-        LeaveAlternateScreen,
-        DisableMouseCapture
-    )?;
-    terminal.show_cursor()?;
-
+    execute!(stdout(), LeaveAlternateScreen)?;
     Ok(())
 }
