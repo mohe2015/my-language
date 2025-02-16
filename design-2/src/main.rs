@@ -19,6 +19,8 @@ use ratatui::{
     text::{Line, Span},
 };
 
+// TODO cursor that addresses single characters so you can properly insert numbers text etc.
+
 pub enum ASTInner<T> {
     Integer(u64),
     Double(f64),
