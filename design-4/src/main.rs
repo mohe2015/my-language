@@ -43,7 +43,7 @@ enum ASTHistoryEntryInner {
 }
 
 fn main() {
-    let ast_peer_1 = ASTHistoryEntry {
+    let ast_peer_1 = vec![ASTHistoryEntry {
         peer: "1".to_string(),
         previous: vec![],
         value: ASTHistoryEntryInner::Initial {
@@ -52,18 +52,28 @@ fn main() {
                 value: 42,
             },
         },
-    };
+    }];
 
-    let ast_peer_2 = ast_peer_1.clone();
-    let entry = ASTHistoryEntry {
+    let mut ast_peer_2 = ast_peer_1.clone();
+    ast_peer_2.push(ASTHistoryEntry {
         peer: "2".to_string(),
-        previous: vec![ast_peer_2.hash()],
+        previous: vec![ast_peer_2[0].hash()],
         value: ASTHistoryEntryInner::SetInteger {
             uuid: "test".to_owned(),
             value: 43,
         },
+    });
+    println!("{:?}", ast_peer_2);
+
+    let mut ast_peer_2_iter = ast_peer_2.iter();
+    let Some(ASTHistoryEntry {
+        previous,
+        peer,
+        value: ASTHistoryEntryInner::Initial { ast },
+    }) = ast_peer_2_iter.next()
+    else {
+        panic!()
     };
-    println!("{:?}", entry);
 
     // peer to peer is cool
 }
