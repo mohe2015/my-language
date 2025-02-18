@@ -2,6 +2,7 @@ use std::{
     error::Error,
     io::{self, stdout},
     iter::{Product, Sum},
+    ops::RangeInclusive,
     panic::{set_hook, take_hook},
 };
 
@@ -21,19 +22,13 @@ use ratatui::{
 
 // TODO cursor that addresses single characters so you can properly insert numbers text etc.
 
-pub enum ASTInner<T> {
+pub enum AST {
     Integer(u64),
     Double(f64),
-    Add(Vec<AST<T>>),
-    Multiply(Vec<AST<T>>),
+    Add(Vec<AST>),
+    Multiply(Vec<AST>),
     Placeholder,
 }
-
-pub struct AST<T> {
-    auxiliary: T,
-    inner: ASTInner<T>,
-}
-
 #[derive(Debug)]
 pub enum Value {
     Integer(u64),
@@ -92,28 +87,26 @@ impl Product for Value {
     }
 }
 
-impl AST<bool> {
-    pub fn render(&self, highlight: bool) -> Vec<Span> {
-        let style = if self.auxiliary || highlight {
+impl AST {
+    pub fn render(&self, ranges: &Vec<RangeInclusive<usize>>) -> Vec<Span> {
+        let style = if false {
             Style::new().fg(Color::Black).bg(Color::White)
         } else {
             Style::new().fg(Color::White)
         };
-        match &self.inner {
-            ASTInner::Placeholder => vec![Span::styled(" ", style.underlined())],
-            ASTInner::Integer(value) => vec![Span::styled(value.to_string(), style)],
-            ASTInner::Double(value) => vec![Span::styled(value.to_string(), style)],
-            ASTInner::Add(asts) => std::iter::once(Span::styled("(+", style))
+        match &self {
+            AST::Placeholder => vec![Span::styled(" ", style.underlined())],
+            AST::Integer(value) => vec![Span::styled(value.to_string(), style)],
+            AST::Double(value) => vec![Span::styled(value.to_string(), style)],
+            AST::Add(asts) => std::iter::once(Span::styled("(+", style))
                 .chain(asts.iter().flat_map(|a| {
-                    std::iter::once(Span::styled(" ", style))
-                        .chain(a.render(self.auxiliary || highlight))
+                    std::iter::once(Span::styled(" ", style)).chain(a.render(ranges))
                 }))
                 .chain(std::iter::once(Span::styled(")", style)))
                 .collect(),
-            ASTInner::Multiply(asts) => std::iter::once(Span::styled("(*", style))
+            AST::Multiply(asts) => std::iter::once(Span::styled("(*", style))
                 .chain(asts.iter().flat_map(|a| {
-                    std::iter::once(Span::styled(" ", style))
-                        .chain(a.render(self.auxiliary || highlight))
+                    std::iter::once(Span::styled(" ", style)).chain(a.render(ranges))
                 }))
                 .chain(std::iter::once(Span::styled(")", style)))
                 .collect(),
@@ -121,11 +114,11 @@ impl AST<bool> {
     }
 
     pub fn left(&mut self) {
-        match &mut self.inner {
-            ASTInner::Placeholder => {}
-            ASTInner::Integer(_) => {}
-            ASTInner::Double(_) => {}
-            ASTInner::Add(asts) | ASTInner::Multiply(asts) => {
+        match &mut self {
+            AST::Placeholder => {}
+            AST::Integer(_) => {}
+            AST::Double(_) => {}
+            AST::Add(asts) | AST::Multiply(asts) => {
                 for i in 1..asts.len() {
                     if asts[i].auxiliary {
                         asts[i].auxiliary = false;
@@ -138,11 +131,11 @@ impl AST<bool> {
     }
 
     pub fn right(&mut self) {
-        match &mut self.inner {
-            ASTInner::Placeholder => {}
-            ASTInner::Integer(_) => {}
-            ASTInner::Double(_) => {}
-            ASTInner::Add(asts) | ASTInner::Multiply(asts) => {
+        match &mut self {
+            AST::Placeholder => {}
+            AST::Integer(_) => {}
+            AST::Double(_) => {}
+            AST::Add(asts) | AST::Multiply(asts) => {
                 for i in (0..asts.len() - 1).rev() {
                     if asts[i].auxiliary {
                         asts[i].auxiliary = false;
@@ -155,11 +148,11 @@ impl AST<bool> {
     }
 
     pub fn up(&mut self) {
-        match &mut self.inner {
-            ASTInner::Placeholder => {}
-            ASTInner::Integer(_) => {}
-            ASTInner::Double(_) => {}
-            ASTInner::Add(asts) | ASTInner::Multiply(asts) => {
+        match &mut self {
+            AST::Placeholder => {}
+            AST::Integer(_) => {}
+            AST::Double(_) => {}
+            AST::Add(asts) | AST::Multiply(asts) => {
                 for i in 0..asts.len() {
                     if asts[i].auxiliary {
                         asts[i].auxiliary = false;
@@ -172,11 +165,11 @@ impl AST<bool> {
     }
 
     pub fn down(&mut self) {
-        match &mut self.inner {
-            ASTInner::Placeholder => {}
-            ASTInner::Integer(_) => {}
-            ASTInner::Double(_) => {}
-            ASTInner::Add(asts) | ASTInner::Multiply(asts) => {
+        match &mut self {
+            AST::Placeholder => {}
+            AST::Integer(_) => {}
+            AST::Double(_) => {}
+            AST::Add(asts) | AST::Multiply(asts) => {
                 for i in 0..asts.len() {
                     asts[i].down();
                 }
@@ -191,11 +184,11 @@ impl AST<bool> {
     }
 
     pub fn delete_left(&mut self) {
-        match &mut self.inner {
-            ASTInner::Placeholder => {}
-            ASTInner::Integer(_) => {}
-            ASTInner::Double(_) => {}
-            ASTInner::Multiply(asts) | ASTInner::Add(asts) => {
+        match &mut self {
+            AST::Placeholder => {}
+            AST::Integer(_) => {}
+            AST::Double(_) => {}
+            AST::Multiply(asts) | AST::Add(asts) => {
                 let mut i = asts.len() - 1;
                 loop {
                     if asts[i].auxiliary {
@@ -221,11 +214,11 @@ impl AST<bool> {
     }
 
     pub fn delete_right(&mut self) {
-        match &mut self.inner {
-            ASTInner::Placeholder => {}
-            ASTInner::Integer(_) => {}
-            ASTInner::Double(_) => {}
-            ASTInner::Add(asts) | ASTInner::Multiply(asts) => {
+        match &mut self {
+            AST::Placeholder => {}
+            AST::Integer(_) => {}
+            AST::Double(_) => {}
+            AST::Add(asts) | AST::Multiply(asts) => {
                 let mut i = asts.len() - 1;
                 loop {
                     if asts[i].auxiliary {
@@ -252,11 +245,11 @@ impl AST<bool> {
     }
 
     pub fn insert(&mut self) {
-        match &mut self.inner {
-            ASTInner::Placeholder => {}
-            ASTInner::Integer(_) => {}
-            ASTInner::Double(_) => {}
-            ASTInner::Add(asts) | ASTInner::Multiply(asts) => {
+        match &mut self {
+            AST::Placeholder => {}
+            AST::Integer(_) => {}
+            AST::Double(_) => {}
+            AST::Add(asts) | AST::Multiply(asts) => {
                 for i in (0..asts.len()).rev() {
                     if asts[i].auxiliary {
                         asts[i].auxiliary = false;
@@ -264,7 +257,7 @@ impl AST<bool> {
                             i + 1,
                             AST {
                                 auxiliary: true,
-                                inner: ASTInner::Placeholder,
+                                inner: AST::Placeholder,
                             },
                         );
                     }
@@ -274,30 +267,30 @@ impl AST<bool> {
         }
     }
 
-    pub fn map_selected(&mut self, mapper: &impl Fn(&mut ASTInner<bool>)) {
+    pub fn map_selected(&mut self, mapper: &impl Fn(&mut AST<bool>)) {
         if self.auxiliary {
-            mapper(&mut self.inner);
+            mapper(&mut self);
         }
-        match &mut self.inner {
-            ASTInner::Integer(_) => {}
-            ASTInner::Double(_) => {}
-            ASTInner::Placeholder => {}
-            ASTInner::Add(asts) => {
+        match &mut self {
+            AST::Integer(_) => {}
+            AST::Double(_) => {}
+            AST::Placeholder => {}
+            AST::Add(asts) => {
                 asts.iter_mut().for_each(|val| val.map_selected(mapper));
             }
-            ASTInner::Multiply(asts) => {
+            AST::Multiply(asts) => {
                 asts.iter_mut().for_each(|val| val.map_selected(mapper));
             }
         }
     }
 
     pub fn eval(&mut self) -> Value {
-        match &mut self.inner {
-            ASTInner::Placeholder => panic!("placeholder can't be evaluated"),
-            ASTInner::Integer(value) => Value::Integer(*value),
-            ASTInner::Double(value) => Value::Double(*value),
-            ASTInner::Add(asts) => asts.iter_mut().map(|e| e.eval()).sum(),
-            ASTInner::Multiply(asts) => asts.iter_mut().map(|e| e.eval()).product(),
+        match &mut self {
+            AST::Placeholder => panic!("placeholder can't be evaluated"),
+            AST::Integer(value) => Value::Integer(*value),
+            AST::Double(value) => Value::Double(*value),
+            AST::Add(asts) => asts.iter_mut().map(|e| e.eval()).sum(),
+            AST::Multiply(asts) => asts.iter_mut().map(|e| e.eval()).product(),
         }
     }
 }
@@ -305,6 +298,7 @@ impl AST<bool> {
 pub struct App {
     ast: AST<bool>,
     status: String,
+    selections: Vec<RangeInclusive<usize>>,
 }
 
 impl App {
@@ -344,15 +338,13 @@ impl App {
                     }
                     KeyCode::Char(char @ '0'..='9') => {
                         self.ast.map_selected(&|input| match input {
-                            ASTInner::Integer(value) => {
+                            AST::Integer(value) => {
                                 *value = *value * 10 + (char as u64 - '0' as u64)
                             }
-                            ASTInner::Double(_) => {}
-                            ASTInner::Add(asts) => {}
-                            ASTInner::Multiply(asts) => {}
-                            ASTInner::Placeholder => {
-                                *input = ASTInner::Integer(char as u64 - '0' as u64)
-                            }
+                            AST::Double(_) => {}
+                            AST::Add(asts) => {}
+                            AST::Multiply(asts) => {}
+                            AST::Placeholder => *input = AST::Integer(char as u64 - '0' as u64),
                         });
                     }
                     KeyCode::Char('e') => {
@@ -387,29 +379,30 @@ pub fn main() -> io::Result<()> {
     tui.draw(|frame| frame.render_widget(Span::from("Hello, world!"), frame.area()))?;
     let mut app = App {
         status: "Hello world".to_owned(),
+        selections: vec![(0..=1)],
         ast: AST {
             auxiliary: false,
-            inner: ASTInner::Add(vec![
+            inner: AST::Add(vec![
                 AST {
                     auxiliary: false,
-                    inner: ASTInner::Integer(5),
+                    inner: AST::Integer(5),
                 },
                 AST {
                     auxiliary: false,
-                    inner: ASTInner::Multiply(vec![
+                    inner: AST::Multiply(vec![
                         AST {
                             auxiliary: false,
-                            inner: ASTInner::Integer(5),
+                            inner: AST::Integer(5),
                         },
                         AST {
                             auxiliary: true,
-                            inner: ASTInner::Integer(7),
+                            inner: AST::Integer(7),
                         },
                     ]),
                 },
                 AST {
                     auxiliary: false,
-                    inner: ASTInner::Integer(7),
+                    inner: AST::Integer(7),
                 },
             ]),
         },
