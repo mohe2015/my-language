@@ -20,7 +20,10 @@ use ratatui::{
     text::{Line, Span},
 };
 
+// we probably want to limit what you can select for semantic operations. navigating in subparts of an ast node should be fine but across ast nodes probably not everything should be allowed
+
 // TODO cursor that addresses single characters so you can properly insert numbers text etc.
+// collaborative editing should be supported. also with semantic operations for refactoring
 
 pub enum AST {
     Integer(u64),
@@ -113,76 +116,6 @@ impl AST {
         }
     }
 
-    pub fn left(&mut self) {
-        match &mut self {
-            AST::Placeholder => {}
-            AST::Integer(_) => {}
-            AST::Double(_) => {}
-            AST::Add(asts) | AST::Multiply(asts) => {
-                for i in 1..asts.len() {
-                    if asts[i].auxiliary {
-                        asts[i].auxiliary = false;
-                        asts[i - 1].auxiliary = true;
-                    }
-                    asts[i].left();
-                }
-            }
-        }
-    }
-
-    pub fn right(&mut self) {
-        match &mut self {
-            AST::Placeholder => {}
-            AST::Integer(_) => {}
-            AST::Double(_) => {}
-            AST::Add(asts) | AST::Multiply(asts) => {
-                for i in (0..asts.len() - 1).rev() {
-                    if asts[i].auxiliary {
-                        asts[i].auxiliary = false;
-                        asts[i + 1].auxiliary = true;
-                    }
-                    asts[i].right();
-                }
-            }
-        }
-    }
-
-    pub fn up(&mut self) {
-        match &mut self {
-            AST::Placeholder => {}
-            AST::Integer(_) => {}
-            AST::Double(_) => {}
-            AST::Add(asts) | AST::Multiply(asts) => {
-                for i in 0..asts.len() {
-                    if asts[i].auxiliary {
-                        asts[i].auxiliary = false;
-                        self.auxiliary = true;
-                    }
-                    asts[i].up();
-                }
-            }
-        }
-    }
-
-    pub fn down(&mut self) {
-        match &mut self {
-            AST::Placeholder => {}
-            AST::Integer(_) => {}
-            AST::Double(_) => {}
-            AST::Add(asts) | AST::Multiply(asts) => {
-                for i in 0..asts.len() {
-                    asts[i].down();
-                }
-                if self.auxiliary {
-                    if asts.len() > 0 {
-                        self.auxiliary = false;
-                        asts[0].auxiliary = true;
-                    }
-                }
-            }
-        }
-    }
-
     pub fn delete_left(&mut self) {
         match &mut self {
             AST::Placeholder => {}
@@ -253,13 +186,7 @@ impl AST {
                 for i in (0..asts.len()).rev() {
                     if asts[i].auxiliary {
                         asts[i].auxiliary = false;
-                        asts.insert(
-                            i + 1,
-                            AST {
-                                auxiliary: true,
-                                inner: AST::Placeholder,
-                            },
-                        );
+                        asts.insert(i + 1, AST::Placeholder);
                     }
                     asts[i].insert();
                 }
@@ -285,7 +212,7 @@ impl AST {
     }
 
     pub fn eval(&mut self) -> Value {
-        match &mut self {
+        match self {
             AST::Placeholder => panic!("placeholder can't be evaluated"),
             AST::Integer(value) => Value::Integer(*value),
             AST::Double(value) => Value::Double(*value),
@@ -296,7 +223,7 @@ impl AST {
 }
 
 pub struct App {
-    ast: AST<bool>,
+    ast: AST,
     status: String,
     selections: Vec<RangeInclusive<usize>>,
 }
