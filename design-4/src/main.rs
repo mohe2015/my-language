@@ -321,7 +321,50 @@ impl App {
                             })
                             .collect();
                     }
-                    KeyCode::Left => {}
+                    KeyCode::Left => {
+                        self.selected = self
+                            .selected
+                            .iter()
+                            .filter_map(|elem| {
+                                let child = self.ast.get_by_uuid_mut(elem).unwrap().uuid.clone();
+                                let node = self.ast.parent_of_uuid_mut(elem)?;
+
+                                match &node.value {
+                                    ASTInner::Add { items } => {
+                                        let index = items
+                                            .iter()
+                                            .position(|item| item.uuid == child)
+                                            .unwrap();
+                                        items.get(index.saturating_sub(1)).map(|i| i.uuid.clone())
+                                    }
+                                    ASTInner::Integer { value } => Some(elem.clone()),
+                                }
+                            })
+                            .collect();
+                    }
+                    KeyCode::Right => {
+                        self.selected = self
+                            .selected
+                            .iter()
+                            .filter_map(|elem| {
+                                let child = self.ast.get_by_uuid_mut(elem).unwrap().uuid.clone();
+                                let node = self.ast.parent_of_uuid_mut(elem)?;
+
+                                match &node.value {
+                                    ASTInner::Add { items } => {
+                                        let index = items
+                                            .iter()
+                                            .position(|item| item.uuid == child)
+                                            .unwrap();
+                                        items
+                                            .get(std::cmp::min(items.len() - 1, index + 1))
+                                            .map(|i| i.uuid.clone())
+                                    }
+                                    ASTInner::Integer { value } => Some(elem.clone()),
+                                }
+                            })
+                            .collect();
+                    }
                     _ => {}
                 }
             }
