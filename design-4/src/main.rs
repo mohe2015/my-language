@@ -59,9 +59,10 @@ impl AST {
         }
     }
 
-    pub fn parent_of_uuid_mut(&mut self, uuid: &str) -> Option<&mut AST> {
+    pub fn parent_of_uuid_mut<'a, 'b>(&'a mut self, uuid: &'b str) -> Option<&'a mut AST> {
         #[cfg(debug_assertions)]
         self.validate();
+        println!("parent of {}", uuid);
         match &mut self.value {
             ASTInner::Add { items } => {
                 if items.iter_mut().any(|item| item.uuid == uuid) {
@@ -72,11 +73,9 @@ impl AST {
         }
         match &mut self.value {
             ASTInner::Add { items } => {
-                if items.iter_mut().all(|item| item.uuid != uuid) {
-                    items
-                        .iter_mut()
-                        .find_map(|item| item.parent_of_uuid_mut(uuid));
-                }
+                items
+                    .iter_mut()
+                    .find_map(|item| item.parent_of_uuid_mut(uuid));
             }
             ASTInner::Integer { value } => {}
         }
@@ -128,12 +127,16 @@ impl AST {
             not_highlighted
         };
         match &self.value {
-            ASTInner::Add { items } => std::iter::once(Span::styled("(+", style))
-                .chain(items.iter().flat_map(|a| {
-                    std::iter::once(Span::styled(" ", style)).chain(a.render(selected))
-                }))
-                .chain(std::iter::once(Span::styled(")", style)))
-                .collect(),
+            ASTInner::Add { items } => {
+                [Span::styled("(", style), Span::styled("+", not_highlighted)]
+                    .into_iter()
+                    .chain(items.iter().flat_map(|a| {
+                        std::iter::once(Span::styled(" ", not_highlighted))
+                            .chain(a.render(selected))
+                    }))
+                    .chain(std::iter::once(Span::styled(")", style)))
+                    .collect()
+            }
             ASTInner::Integer { value } => vec![Span::styled(value.to_string(), style)],
         }
     }
@@ -222,7 +225,10 @@ impl App {
                             .filter_map(|elem| {
                                 let node = self.ast.get_by_uuid_mut(elem).unwrap();
                                 match &node.value {
-                                    ASTInner::Add { items } => None,
+                                    ASTInner::Add { items } => {
+                                        self.status = "can't wrap + into +".to_owned();
+                                        None
+                                    }
                                     ASTInner::Integer { value } => Some(ASTHistoryEntry {
                                         previous: vec![],
                                         peer: "todo".to_owned(),
@@ -255,7 +261,12 @@ impl App {
                         self.selected = self
                             .selected
                             .iter()
-                            .map(|elem| self.ast.parent_of_uuid_mut(elem).unwrap().uuid.clone())
+                            .map(|elem| {
+                                self.ast
+                                    .parent_of_uuid_mut(elem)
+                                    .map(|item| item.uuid.clone())
+                                    .unwrap_or(elem.clone())
+                            })
                             .collect();
                     }
                     KeyCode::Left => {}
