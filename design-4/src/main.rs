@@ -1,15 +1,30 @@
 use sha3::{Digest, Sha3_512};
 
 #[derive(Debug, Clone)]
-enum AST {
+pub struct AST {
+    uuid: String,
+    changed_by: String,
+    value: ASTInner,
+}
+
+impl AST {
+    pub fn get_by_uuid_mut(&mut self, uuid: &str) -> Option<&mut AST> {
+        if self.uuid == uuid {
+            return Some(self);
+        }
+        match &mut self.value {
+            ASTInner::Add { items } => items.iter_mut().find_map(|item| item.get_by_uuid_mut(uuid)),
+            ASTInner::Integer { value } => panic!(),
+        }
+    }
+}
+
+#[derive(Debug, Clone)]
+enum ASTInner {
     Add {
-        uuid: String,
-        changed_by: String,
         items: Vec<AST>, // two users should be allowed to add elements concurrently without conflict? or maybe a light conflict that you can easily resolve?
     },
     Integer {
-        uuid: String,
-        changed_by: String,
         value: i64, // e.g. if one user updates this, then this should be fine. but two users updating it should create a conflict
     },
 }
@@ -18,6 +33,7 @@ enum AST {
 pub struct ASTHistoryEntry {
     previous: Vec<String>,
     peer: String, // TODO sign with this peer id
+    // we could also store which commit changed the value last here and if it doesn't match, it's a conflict
     value: ASTHistoryEntryInner,
 }
 
@@ -49,10 +65,10 @@ fn main() {
         peer: "1".to_string(),
         previous: vec![],
         value: ASTHistoryEntryInner::Initial {
-            ast: AST::Integer {
+            ast: AST {
                 uuid: "test".to_owned(),
                 changed_by: "".to_owned(),
-                value: 42,
+                value: ASTInner::Integer { value: 42 },
             },
         },
     }];
@@ -66,7 +82,6 @@ fn main() {
             value: 43,
         },
     });
-    println!("{:?}", ast_peer_2);
 
     let mut ast_peer_2_iter = ast_peer_2.iter();
     let Some(ASTHistoryEntry {
@@ -77,16 +92,27 @@ fn main() {
     else {
         panic!()
     };
+    let mut ast = ast.clone();
+    println!("{ast:?}");
 
     for history in ast_peer_2_iter {
         match &history.value {
             ASTHistoryEntryInner::Initial { ast } => panic!("initial can not be set twice"),
-            ASTHistoryEntryInner::SetInteger { uuid, value } => {
-                println!("modifying ast integer")
+            ASTHistoryEntryInner::SetInteger {
+                uuid,
+                value: new_value,
+            } => {
+                println!("modifying ast integer");
+                let ast = ast.get_by_uuid_mut(uuid).unwrap();
+                let ASTInner::Integer { value } = &mut ast.value else {
+                    panic!()
+                };
+                *value = *new_value;
             }
             ASTHistoryEntryInner::InsertToAdd { uuid, ast } => todo!(),
         }
     }
+    println!("{ast:?}");
 
     // peer to peer is cool
 
