@@ -1,4 +1,5 @@
 use std::{
+    collections::HashSet,
     io::stdout,
     panic::{set_hook, take_hook},
 };
@@ -12,6 +13,7 @@ use ratatui::{
     },
     layout::{Constraint, Direction, Layout},
     prelude::{Backend, CrosstermBackend},
+    style::{Color, Style},
     text::{Line, Span},
 };
 use sha3::{Digest, Sha3_512};
@@ -31,6 +33,26 @@ impl AST {
         match &mut self.value {
             ASTInner::Add { items } => items.iter_mut().find_map(|item| item.get_by_uuid_mut(uuid)),
             ASTInner::Integer { value } => panic!(),
+        }
+    }
+
+    pub fn render(&self, selected: &HashSet<String>) -> Vec<Span> {
+        let highlighted = Style::new().fg(Color::Black).bg(Color::White);
+        let not_highlighted = Style::new().fg(Color::White);
+        match &self.value {
+            ASTInner::Add { items } => std::iter::once(Span::styled("(+", highlighted))
+                .chain(items.iter().flat_map(|a| {
+                    std::iter::once(Span::styled(" ", highlighted)).chain(a.render(selected))
+                }))
+                .chain(std::iter::once(Span::styled(")", highlighted)))
+                .collect(),
+            ASTInner::Integer { value } => {
+                if selected.contains(&self.uuid) {
+                    vec![Span::styled(value.to_string(), highlighted)]
+                } else {
+                    vec![Span::styled(value.to_string(), not_highlighted)]
+                }
+            }
         }
     }
 }
@@ -91,6 +113,8 @@ pub fn restore_tui() -> std::io::Result<()> {
 pub struct App {
     ast: AST,
     status: String,
+    /// UUIDs of selected nodes
+    selected: HashSet<String>,
 }
 
 impl App {
@@ -120,7 +144,7 @@ impl App {
             .constraints(vec![Constraint::Percentage(100), Constraint::Length(1)])
             .split(frame.area());
 
-        //frame.render_widget(Line::from(self.ast.render(false)), layout[0]);
+        frame.render_widget(Line::from(self.ast.render(&self.selected)), layout[0]);
         frame.render_widget(Line::raw(self.status.clone()), layout[1]);
     }
 }
@@ -194,6 +218,7 @@ fn main() -> std::io::Result<()> {
     tui.draw(|frame| frame.render_widget(Span::from("Hello, world!"), frame.area()))?;
     let mut app = App {
         status: "Hello world".to_owned(),
+        selected: HashSet::from([ast.uuid.clone()]),
         ast,
     };
     app.run_app(&mut tui)?;
