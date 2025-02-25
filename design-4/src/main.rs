@@ -4,6 +4,7 @@ use std::{
     panic::{set_hook, take_hook},
 };
 
+use rand::RngCore as _;
 use ratatui::{
     Frame, Terminal,
     crossterm::{
@@ -18,6 +19,13 @@ use ratatui::{
 };
 use sha3::{Digest, Sha3_512};
 
+pub fn generate_uuid() -> String {
+    // get some random data:
+    let mut data = [0u8; 64];
+    rand::rng().fill_bytes(&mut data);
+    base16ct::lower::encode_string(&data)
+}
+
 #[derive(Debug, Clone)]
 pub struct AST {
     uuid: String,
@@ -26,7 +34,22 @@ pub struct AST {
 }
 
 impl AST {
+    /// Check no uuid is duplicated
+    pub fn validate(&self) {
+        self.validate_inner(&mut HashSet::new());
+    }
+
+    fn validate_inner(&self, known: &mut HashSet<String>) {
+        assert!(known.insert(self.uuid.clone()));
+        match &self.value {
+            ASTInner::Add { items } => items.iter().for_each(|item| item.validate_inner(known)),
+            ASTInner::Integer { value } => {}
+        }
+    }
+
     pub fn get_by_uuid_mut(&mut self, uuid: &str) -> Option<&mut AST> {
+        #[cfg(debug_assertions)]
+        self.validate();
         if self.uuid == uuid {
             return Some(self);
         }
@@ -55,8 +78,8 @@ impl AST {
                 let ast = self.get_by_uuid_mut(uuid).unwrap();
 
                 let new = AST {
-                    uuid: "1337".to_owned(),
-                    changed_by: "".to_owned(),
+                    uuid: generate_uuid(),
+                    changed_by: history.peer.clone(),
                     value: ASTInner::Add { items: vec![] },
                 };
 
@@ -68,6 +91,8 @@ impl AST {
                 items.push(inner);
             }
         }
+        #[cfg(debug_assertions)]
+        self.validate();
     }
 
     pub fn render(&self, selected: &HashSet<String>) -> Vec<Span> {
@@ -209,13 +234,14 @@ impl App {
 }
 
 fn main() -> std::io::Result<()> {
+    let initial_uuid = generate_uuid();
     let ast_peer_1 = vec![ASTHistoryEntry {
         peer: "1".to_string(),
         previous: vec![],
         value: ASTHistoryEntryInner::Initial {
             ast: AST {
-                uuid: "test".to_owned(),
-                changed_by: "".to_owned(),
+                uuid: initial_uuid.clone(),
+                changed_by: generate_uuid(),
                 value: ASTInner::Integer { value: 42 },
             },
         },
@@ -226,7 +252,7 @@ fn main() -> std::io::Result<()> {
         peer: "2".to_string(),
         previous: vec![ast_peer_2[0].hash()],
         value: ASTHistoryEntryInner::SetInteger {
-            uuid: "test".to_owned(),
+            uuid: initial_uuid,
             value: 43,
         },
     });
