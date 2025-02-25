@@ -88,14 +88,19 @@ impl AST {
                 uuid,
                 value: new_value,
             } => {
-                println!("modifying ast integer");
                 let ast = self.get_by_uuid_mut(uuid).unwrap();
                 let ASTInner::Integer { value } = &mut ast.value else {
                     panic!()
                 };
                 *value = *new_value;
             }
-            ASTHistoryEntryInner::InsertToAdd { uuid, ast } => todo!(),
+            ASTHistoryEntryInner::InsertAtIndex { uuid, index, ast } => {
+                let list_ast = self.get_by_uuid_mut(uuid).unwrap();
+                let ASTInner::Add { items } = &mut list_ast.value else {
+                    panic!()
+                };
+                items.insert(*index, ast.clone());
+            }
             ASTHistoryEntryInner::WrapIntegerInAdd { uuid } => {
                 let ast = self.get_by_uuid_mut(uuid).unwrap();
 
@@ -177,10 +182,22 @@ impl ASTHistoryEntry {
 
 #[derive(Debug, Clone)]
 enum ASTHistoryEntryInner {
-    Initial { ast: AST },
-    SetInteger { uuid: String, value: i64 },
-    WrapIntegerInAdd { uuid: String },
-    InsertToAdd { uuid: String, ast: AST },
+    Initial {
+        ast: AST,
+    },
+    SetInteger {
+        uuid: String,
+        value: i64,
+    },
+    WrapIntegerInAdd {
+        uuid: String,
+    },
+    /// As we're a programming language inserting at index probably makes most sense
+    InsertAtIndex {
+        uuid: String,
+        index: usize,
+        ast: AST,
+    },
 }
 
 pub fn init_tui() -> std::io::Result<Terminal<impl Backend>> {
@@ -218,7 +235,6 @@ impl App {
                         return Ok(());
                     }
                     KeyCode::Char('+') => {
-                        // wrap integer into ok
                         let operations = self
                             .selected
                             .iter()
@@ -236,6 +252,41 @@ impl App {
                                             uuid: elem.clone(),
                                         },
                                     }),
+                                }
+                            })
+                            .collect::<Vec<_>>();
+
+                        operations
+                            .iter()
+                            .for_each(|history| self.ast.apply(history));
+                    }
+                    KeyCode::Char(' ') => {
+                        // insert in list (maybe first simply to the right?)
+
+                        let operations = self
+                            .selected
+                            .iter()
+                            .filter_map(|elem| {
+                                let node = self.ast.get_by_uuid_mut(elem).unwrap();
+                                match &node.value {
+                                    ASTInner::Add { items } => Some(ASTHistoryEntry {
+                                        previous: vec![],
+                                        peer: "todo".to_owned(),
+                                        value: ASTHistoryEntryInner::InsertAtIndex {
+                                            uuid: elem.clone(),
+                                            index: 0,
+                                            ast: AST {
+                                                uuid: generate_uuid(),
+                                                changed_by: "".to_owned(),
+                                                value: ASTInner::Integer { value: 1 },
+                                            },
+                                        },
+                                    }),
+                                    ASTInner::Integer { value } => {
+                                        self.status =
+                                            "can't append as integer is not a list".to_owned();
+                                        None
+                                    }
                                 }
                             })
                             .collect::<Vec<_>>();
