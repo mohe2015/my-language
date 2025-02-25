@@ -365,6 +365,10 @@ impl App {
                             })
                             .collect();
                     }
+                    KeyCode::Enter => {
+                        // edit integer
+                        // https://ratatui.rs/examples/apps/user_input/
+                    }
                     _ => {}
                 }
             }
@@ -379,6 +383,7 @@ impl App {
 
         frame.render_widget(Line::from(self.ast.render(&self.selected)), layout[0]);
         frame.render_widget(Line::raw(self.status.clone()), layout[1]);
+        frame.set_cursor_position((5, 0));
     }
 }
 
