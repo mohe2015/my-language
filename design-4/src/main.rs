@@ -393,30 +393,6 @@ impl App {
 }
 
 fn main() -> std::io::Result<()> {
-    // https://github.com/emilk/egui?tab=readme-ov-file
-    let application = Application::builder()
-        .application_id("com.example.FirstGtkApp")
-        .build();
-
-    application.connect_activate(|app| {
-        let window = ApplicationWindow::builder()
-            .application(app)
-            .title("First GTK Program")
-            .default_width(350)
-            .default_height(70)
-            .build();
-
-        let button = Button::with_label("Click me!");
-        button.connect_clicked(|_| {
-            eprintln!("Clicked!");
-        });
-        window.set_child(Some(&button));
-
-        window.present();
-    });
-
-    application.run();
-
     let initial_uuid = generate_uuid();
     let ast_peer_1 = vec![ASTHistoryEntry {
         peer: "1".to_string(),
@@ -479,6 +455,30 @@ fn main() -> std::io::Result<()> {
     restore_tui()?;
 
     println!("{:?}", app.ast);
+
+    // https://github.com/emilk/egui?tab=readme-ov-file
+    let application = Application::builder()
+        .application_id("com.example.FirstGtkApp")
+        .build();
+
+    application.connect_activate(|app| {
+        let window = ApplicationWindow::builder()
+            .application(app)
+            .title("First GTK Program")
+            .default_width(350)
+            .default_height(70)
+            .build();
+
+        let button = Button::with_label("Click me!");
+        button.connect_clicked(|_| {
+            eprintln!("Clicked!");
+        });
+        window.set_child(Some(&button));
+
+        window.present();
+    });
+
+    application.run();
 
     Ok(())
 }
