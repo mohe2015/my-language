@@ -55,7 +55,7 @@ impl AST {
         }
         match &mut self.value {
             ASTInner::Add { items } => items.iter_mut().find_map(|item| item.get_by_uuid_mut(uuid)),
-            ASTInner::Integer { value } => panic!(),
+            ASTInner::Integer { value } => None,
         }
     }
 
@@ -267,14 +267,19 @@ impl App {
                             .selected
                             .iter()
                             .filter_map(|elem| {
-                                let node = self.ast.get_by_uuid_mut(elem).unwrap();
+                                let child = self.ast.get_by_uuid_mut(elem).unwrap().uuid.clone();
+                                let node = self.ast.parent_of_uuid_mut(elem)?;
+
                                 match &node.value {
                                     ASTInner::Add { items } => Some(ASTHistoryEntry {
                                         previous: vec![],
                                         peer: "todo".to_owned(),
                                         value: ASTHistoryEntryInner::InsertAtIndex {
-                                            uuid: elem.clone(),
-                                            index: 0,
+                                            uuid: node.uuid.clone(),
+                                            index: items
+                                                .iter()
+                                                .position(|item| item.uuid == child)
+                                                .unwrap(),
                                             ast: AST {
                                                 uuid: generate_uuid(),
                                                 changed_by: "".to_owned(),
@@ -282,11 +287,7 @@ impl App {
                                             },
                                         },
                                     }),
-                                    ASTInner::Integer { value } => {
-                                        self.status =
-                                            "can't append as integer is not a list".to_owned();
-                                        None
-                                    }
+                                    ASTInner::Integer { value } => None,
                                 }
                             })
                             .collect::<Vec<_>>();
