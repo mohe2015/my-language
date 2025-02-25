@@ -59,6 +59,30 @@ impl AST {
         }
     }
 
+    pub fn parent_of_uuid_mut(&mut self, uuid: &str) -> Option<&mut AST> {
+        #[cfg(debug_assertions)]
+        self.validate();
+        match &mut self.value {
+            ASTInner::Add { items } => {
+                if items.iter_mut().any(|item| item.uuid == uuid) {
+                    return Some(self);
+                }
+            }
+            ASTInner::Integer { value } => {}
+        }
+        match &mut self.value {
+            ASTInner::Add { items } => {
+                if items.iter_mut().all(|item| item.uuid != uuid) {
+                    items
+                        .iter_mut()
+                        .find_map(|item| item.parent_of_uuid_mut(uuid));
+                }
+            }
+            ASTInner::Integer { value } => {}
+        }
+        None
+    }
+
     pub fn apply(&mut self, history: &ASTHistoryEntry) {
         match &history.value {
             ASTHistoryEntryInner::Initial { ast } => panic!("initial can not be set twice"),
@@ -225,6 +249,13 @@ impl App {
                                     ASTInner::Integer { value } => node.uuid.clone(),
                                 }
                             })
+                            .collect();
+                    }
+                    KeyCode::Up => {
+                        self.selected = self
+                            .selected
+                            .iter()
+                            .map(|elem| self.ast.parent_of_uuid_mut(elem).unwrap().uuid.clone())
                             .collect();
                     }
                     KeyCode::Left => {}
