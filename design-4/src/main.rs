@@ -62,7 +62,6 @@ impl AST {
     pub fn parent_of_uuid_mut<'a, 'b>(&'a mut self, uuid: &'b str) -> Option<&'a mut AST> {
         #[cfg(debug_assertions)]
         self.validate();
-        println!("parent of {}", uuid);
         match &mut self.value {
             ASTInner::Add { items } => {
                 if items.iter_mut().any(|item| item.uuid == uuid) {
@@ -73,7 +72,7 @@ impl AST {
         }
         match &mut self.value {
             ASTInner::Add { items } => {
-                items
+                return items
                     .iter_mut()
                     .find_map(|item| item.parent_of_uuid_mut(uuid));
             }
@@ -213,6 +212,7 @@ impl App {
                     // Skip events that are not KeyEventKind::Press
                     continue;
                 }
+                self.status = "".to_owned();
                 match key.code {
                     KeyCode::Char('c') if key.modifiers.contains(KeyModifiers::CONTROL) => {
                         return Ok(());
