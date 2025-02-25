@@ -36,6 +36,40 @@ impl AST {
         }
     }
 
+    pub fn apply(&mut self, history: &ASTHistoryEntry) {
+        match &history.value {
+            ASTHistoryEntryInner::Initial { ast } => panic!("initial can not be set twice"),
+            ASTHistoryEntryInner::SetInteger {
+                uuid,
+                value: new_value,
+            } => {
+                println!("modifying ast integer");
+                let ast = self.get_by_uuid_mut(uuid).unwrap();
+                let ASTInner::Integer { value } = &mut ast.value else {
+                    panic!()
+                };
+                *value = *new_value;
+            }
+            ASTHistoryEntryInner::InsertToAdd { uuid, ast } => todo!(),
+            ASTHistoryEntryInner::WrapIntegerInAdd { uuid } => {
+                let ast = self.get_by_uuid_mut(uuid).unwrap();
+
+                let new = AST {
+                    uuid: "1337".to_owned(),
+                    changed_by: "".to_owned(),
+                    value: ASTInner::Add { items: vec![] },
+                };
+
+                let inner = std::mem::replace(ast, new);
+
+                let ASTInner::Add { items } = &mut ast.value else {
+                    panic!()
+                };
+                items.push(inner);
+            }
+        }
+    }
+
     pub fn render(&self, selected: &HashSet<String>) -> Vec<Span> {
         let highlighted = Style::new().fg(Color::Black).bg(Color::White);
         let not_highlighted = Style::new().fg(Color::White);
@@ -95,6 +129,7 @@ impl ASTHistoryEntry {
 enum ASTHistoryEntryInner {
     Initial { ast: AST },
     SetInteger { uuid: String, value: i64 },
+    WrapIntegerInAdd { uuid: String },
     InsertToAdd { uuid: String, ast: AST },
 }
 
@@ -130,6 +165,30 @@ impl App {
                 match key.code {
                     KeyCode::Char('c') if key.modifiers.contains(KeyModifiers::CONTROL) => {
                         return Ok(());
+                    }
+                    KeyCode::Char('+') => {
+                        // wrap integer into ok
+                        let operations = self
+                            .selected
+                            .iter()
+                            .filter_map(|elem| {
+                                let node = self.ast.get_by_uuid_mut(elem).unwrap();
+                                match &node.value {
+                                    ASTInner::Add { items } => None,
+                                    ASTInner::Integer { value } => Some(ASTHistoryEntry {
+                                        previous: vec![],
+                                        peer: "todo".to_owned(),
+                                        value: ASTHistoryEntryInner::WrapIntegerInAdd {
+                                            uuid: elem.clone(),
+                                        },
+                                    }),
+                                }
+                            })
+                            .collect::<Vec<_>>();
+
+                        operations
+                            .iter()
+                            .for_each(|history| self.ast.apply(history));
                     }
                     KeyCode::Left => {}
                     _ => {}
@@ -185,21 +244,7 @@ fn main() -> std::io::Result<()> {
     println!("{ast:?}");
 
     for history in ast_peer_2_iter {
-        match &history.value {
-            ASTHistoryEntryInner::Initial { ast } => panic!("initial can not be set twice"),
-            ASTHistoryEntryInner::SetInteger {
-                uuid,
-                value: new_value,
-            } => {
-                println!("modifying ast integer");
-                let ast = ast.get_by_uuid_mut(uuid).unwrap();
-                let ASTInner::Integer { value } = &mut ast.value else {
-                    panic!()
-                };
-                *value = *new_value;
-            }
-            ASTHistoryEntryInner::InsertToAdd { uuid, ast } => todo!(),
-        }
+        ast.apply(history);
     }
     println!("{ast:?}");
 
