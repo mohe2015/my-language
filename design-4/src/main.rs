@@ -4,6 +4,11 @@ use std::{
     panic::{set_hook, take_hook},
 };
 
+use gtk::{
+    Application, ApplicationWindow, Button,
+    gio::prelude::{ApplicationExt as _, ApplicationExtManual as _},
+    prelude::{ButtonExt as _, GtkWindowExt as _},
+};
 use rand::RngCore as _;
 use ratatui::{
     Frame, Terminal,
@@ -383,11 +388,35 @@ impl App {
 
         frame.render_widget(Line::from(self.ast.render(&self.selected)), layout[0]);
         frame.render_widget(Line::raw(self.status.clone()), layout[1]);
-        frame.set_cursor_position((5, 0));
+        //frame.set_cursor_position((5, 0));
     }
 }
 
 fn main() -> std::io::Result<()> {
+    // https://github.com/emilk/egui?tab=readme-ov-file
+    let application = Application::builder()
+        .application_id("com.example.FirstGtkApp")
+        .build();
+
+    application.connect_activate(|app| {
+        let window = ApplicationWindow::builder()
+            .application(app)
+            .title("First GTK Program")
+            .default_width(350)
+            .default_height(70)
+            .build();
+
+        let button = Button::with_label("Click me!");
+        button.connect_clicked(|_| {
+            eprintln!("Clicked!");
+        });
+        window.set_child(Some(&button));
+
+        window.present();
+    });
+
+    application.run();
+
     let initial_uuid = generate_uuid();
     let ast_peer_1 = vec![ASTHistoryEntry {
         peer: "1".to_string(),
