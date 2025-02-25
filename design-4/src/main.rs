@@ -98,20 +98,19 @@ impl AST {
     pub fn render(&self, selected: &HashSet<String>) -> Vec<Span> {
         let highlighted = Style::new().fg(Color::Black).bg(Color::White);
         let not_highlighted = Style::new().fg(Color::White);
+        let style = if selected.contains(&self.uuid) {
+            highlighted
+        } else {
+            not_highlighted
+        };
         match &self.value {
-            ASTInner::Add { items } => std::iter::once(Span::styled("(+", highlighted))
+            ASTInner::Add { items } => std::iter::once(Span::styled("(+", style))
                 .chain(items.iter().flat_map(|a| {
-                    std::iter::once(Span::styled(" ", highlighted)).chain(a.render(selected))
+                    std::iter::once(Span::styled(" ", style)).chain(a.render(selected))
                 }))
-                .chain(std::iter::once(Span::styled(")", highlighted)))
+                .chain(std::iter::once(Span::styled(")", style)))
                 .collect(),
-            ASTInner::Integer { value } => {
-                if selected.contains(&self.uuid) {
-                    vec![Span::styled(value.to_string(), highlighted)]
-                } else {
-                    vec![Span::styled(value.to_string(), not_highlighted)]
-                }
-            }
+            ASTInner::Integer { value } => vec![Span::styled(value.to_string(), style)],
         }
     }
 }
@@ -215,6 +214,19 @@ impl App {
                             .iter()
                             .for_each(|history| self.ast.apply(history));
                     }
+                    KeyCode::Down => {
+                        self.selected = self
+                            .selected
+                            .iter()
+                            .map(|elem| {
+                                let node = self.ast.get_by_uuid_mut(elem).unwrap();
+                                match &node.value {
+                                    ASTInner::Add { items } => items.first().unwrap().uuid.clone(),
+                                    ASTInner::Integer { value } => node.uuid.clone(),
+                                }
+                            })
+                            .collect();
+                    }
                     KeyCode::Left => {}
                     _ => {}
                 }
@@ -294,5 +306,8 @@ fn main() -> std::io::Result<()> {
     };
     app.run_app(&mut tui)?;
     restore_tui()?;
+
+    println!("{:?}", app.ast);
+
     Ok(())
 }
