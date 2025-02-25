@@ -4,10 +4,12 @@ use sha3::{Digest, Sha3_512};
 enum AST {
     Add {
         uuid: String,
+        changed_by: String,
         items: Vec<AST>, // two users should be allowed to add elements concurrently without conflict? or maybe a light conflict that you can easily resolve?
     },
     Integer {
         uuid: String,
+        changed_by: String,
         value: i64, // e.g. if one user updates this, then this should be fine. but two users updating it should create a conflict
     },
 }
@@ -49,6 +51,7 @@ fn main() {
         value: ASTHistoryEntryInner::Initial {
             ast: AST::Integer {
                 uuid: "test".to_owned(),
+                changed_by: "".to_owned(),
                 value: 42,
             },
         },
@@ -75,5 +78,19 @@ fn main() {
         panic!()
     };
 
+    for history in ast_peer_2_iter {
+        match &history.value {
+            ASTHistoryEntryInner::Initial { ast } => panic!("initial can not be set twice"),
+            ASTHistoryEntryInner::SetInteger { uuid, value } => {
+                println!("modifying ast integer")
+            }
+            ASTHistoryEntryInner::InsertToAdd { uuid, ast } => todo!(),
+        }
+    }
+
     // peer to peer is cool
+
+    // first step is just apply updates in dag traversal order
+
+    // maybe for every element store who updated it last (kind of like blame information?) and create conflict if it is a parallel edit?
 }
