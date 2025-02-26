@@ -122,7 +122,7 @@ impl AST {
         self.validate();
     }
 
-    pub fn render(&self, selected: &HashSet<String>) -> Vec<Span> {
+    pub fn render(&self, selected: &HashSet<(String, Option<usize>)>) -> Vec<Span> {
         let highlighted = Style::new().fg(Color::Black).bg(Color::White);
         let not_highlighted = Style::new().fg(Color::White);
         let style = if selected.contains(&self.uuid) {
@@ -216,7 +216,7 @@ pub struct App {
     ast: AST,
     status: String,
     /// UUIDs of selected nodes
-    selected: HashSet<String>,
+    selected: HashSet<(String, Option<usize>)>,
 }
 
 impl App {
@@ -238,7 +238,7 @@ impl App {
                         let operations = self
                             .selected
                             .iter()
-                            .filter_map(|elem| {
+                            .filter_map(|(elem, offset)| {
                                 let node = self.ast.get_by_uuid_mut(elem).unwrap();
                                 match &node.value {
                                     ASTInner::Add { items } => {
@@ -266,7 +266,7 @@ impl App {
                         let operations = self
                             .selected
                             .iter()
-                            .filter_map(|elem| {
+                            .filter_map(|(elem, offset)| {
                                 let child = self.ast.get_by_uuid_mut(elem).unwrap().uuid.clone();
                                 let node = self.ast.parent_of_uuid_mut(elem)?;
 
@@ -300,11 +300,13 @@ impl App {
                         self.selected = self
                             .selected
                             .iter()
-                            .map(|elem| {
+                            .map(|(elem, offset)| {
                                 let node = self.ast.get_by_uuid_mut(elem).unwrap();
                                 match &node.value {
-                                    ASTInner::Add { items } => items.first().unwrap().uuid.clone(),
-                                    ASTInner::Integer { value } => node.uuid.clone(),
+                                    ASTInner::Add { items } => {
+                                        (items.first().unwrap().uuid.clone(), None)
+                                    }
+                                    ASTInner::Integer { value } => (node.uuid.clone(), None),
                                 }
                             })
                             .collect();
@@ -313,11 +315,11 @@ impl App {
                         self.selected = self
                             .selected
                             .iter()
-                            .map(|elem| {
+                            .map(|(elem, offset)| {
                                 self.ast
                                     .parent_of_uuid_mut(elem)
-                                    .map(|item| item.uuid.clone())
-                                    .unwrap_or(elem.clone())
+                                    .map(|item| (item.uuid.clone(), None))
+                                    .unwrap_or((elem.clone(), None))
                             })
                             .collect();
                     }
@@ -325,7 +327,7 @@ impl App {
                         self.selected = self
                             .selected
                             .iter()
-                            .filter_map(|elem| {
+                            .filter_map(|(elem, offset)| {
                                 let child = self.ast.get_by_uuid_mut(elem).unwrap().uuid.clone();
                                 let node = self.ast.parent_of_uuid_mut(elem)?;
 
@@ -335,9 +337,13 @@ impl App {
                                             .iter()
                                             .position(|item| item.uuid == child)
                                             .unwrap();
-                                        items.get(index.saturating_sub(1)).map(|i| i.uuid.clone())
+                                        items
+                                            .get(index.saturating_sub(1))
+                                            .map(|i| (i.uuid.clone(), None))
                                     }
-                                    ASTInner::Integer { value } => Some(elem.clone()),
+                                    ASTInner::Integer { value } => {
+                                        Some((elem.clone(), offset.to_owned()))
+                                    }
                                 }
                             })
                             .collect();
@@ -346,7 +352,7 @@ impl App {
                         self.selected = self
                             .selected
                             .iter()
-                            .filter_map(|elem| {
+                            .filter_map(|(elem, offset)| {
                                 let child = self.ast.get_by_uuid_mut(elem).unwrap().uuid.clone();
                                 let node = self.ast.parent_of_uuid_mut(elem)?;
 
@@ -358,9 +364,11 @@ impl App {
                                             .unwrap();
                                         items
                                             .get(std::cmp::min(items.len() - 1, index + 1))
-                                            .map(|i| i.uuid.clone())
+                                            .map(|i| (i.uuid.clone(), None))
                                     }
-                                    ASTInner::Integer { value } => Some(elem.clone()),
+                                    ASTInner::Integer { value } => {
+                                        Some((elem.clone(), offset.to_owned()))
+                                    }
                                 }
                             })
                             .collect();
