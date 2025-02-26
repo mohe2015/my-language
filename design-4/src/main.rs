@@ -1,5 +1,5 @@
 use std::{
-    collections::HashSet,
+    collections::{HashMap, HashSet},
     io::stdout,
     panic::{set_hook, take_hook},
 };
@@ -122,10 +122,10 @@ impl AST {
         self.validate();
     }
 
-    pub fn render(&self, selected: &HashSet<(String, Option<usize>)>) -> Vec<Span> {
+    pub fn render(&self, selected: &HashMap<String, Option<usize>>) -> Vec<Span> {
         let highlighted = Style::new().fg(Color::Black).bg(Color::White);
         let not_highlighted = Style::new().fg(Color::White);
-        let style = if selected.contains(&self.uuid) {
+        let style = if selected.contains_key(&self.uuid) {
             highlighted
         } else {
             not_highlighted
@@ -216,7 +216,7 @@ pub struct App {
     ast: AST,
     status: String,
     /// UUIDs of selected nodes
-    selected: HashSet<(String, Option<usize>)>,
+    selected: HashMap<String, Option<usize>>,
 }
 
 impl App {
@@ -451,7 +451,7 @@ fn main() -> std::io::Result<()> {
     tui.draw(|frame| frame.render_widget(Span::from("Hello, world!"), frame.area()))?;
     let mut app = App {
         status: "Hello world".to_owned(),
-        selected: HashSet::from([ast.uuid.clone()]),
+        selected: HashMap::from([(ast.uuid.clone(), None)]),
         ast,
     };
     app.run_app(&mut tui)?;
