@@ -5,7 +5,6 @@ edition = "2024"
 
 [dependencies]
 base16ct = { version = "0.2.0", features = ["std"] }
-gtk = { version = "0.9.6", package = "gtk4", features = ["v4_16"] }
 rand = "0.9.0"
 ratatui = "0.29.0"
 sha3 = "0.10.8"
