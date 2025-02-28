@@ -135,27 +135,32 @@ impl AST {
             ASTInner::Add { items } => {
                 [Span::styled("(", style), Span::styled("+", not_highlighted)]
                     .into_iter()
-                    .chain(items.iter().enumerate().flat_map(
-                        |(idx, a)| -> Box<dyn Iterator<Item = Span<'_>>> {
-                            if idx == items.len() - 1 {
-                                Box::new(a.render(selected).into_iter()) as _
-                            } else {
-                                Box::new(a.render(selected).into_iter().chain(std::iter::once(
-                                    Span::styled(
-                                        " ",
-                                        match (&a.value, selected.get(&a.uuid)) {
-                                            (ASTInner::Integer { value }, Some(Some(index)))
-                                                if value.to_string().len() == *index =>
-                                            {
-                                                highlighted
-                                            }
-                                            _ => not_highlighted,
-                                        },
-                                    ),
-                                ))) as _
+                    .chain(items.iter().enumerate().flat_map(|(idx, a)| {
+                        if idx == items.len() - 1 {
+                            let mut arr = a.render(selected);
+                            if idx == 0 {
+                                arr.insert(0, Span::styled(" ", not_highlighted));
                             }
-                        },
-                    ))
+                            arr
+                        } else {
+                            let mut arr = a.render(selected);
+                            if idx == 0 {
+                                arr.insert(0, Span::styled(" ", not_highlighted));
+                            }
+                            arr.push(Span::styled(
+                                " ",
+                                match (&a.value, selected.get(&a.uuid)) {
+                                    (ASTInner::Integer { value }, Some(Some(index)))
+                                        if value.to_string().len() == *index =>
+                                    {
+                                        highlighted
+                                    }
+                                    _ => not_highlighted,
+                                },
+                            ));
+                            arr
+                        }
+                    }))
                     .chain(std::iter::once(Span::styled(")", style)))
                     .collect()
             }
