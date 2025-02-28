@@ -408,9 +408,34 @@ impl App {
                             })
                             .collect();
                     }
-                    KeyCode::Enter => {
-                        // edit integer
-                        // https://ratatui.rs/examples/apps/user_input/
+                    KeyCode::Char(char @ '0'..='9') => {
+                        let operations = self
+                            .selected
+                            .iter()
+                            .filter_map(|(elem, offset)| {
+                                let node = self.ast.get_by_uuid_mut(elem).unwrap();
+
+                                match &node.value {
+                                    ASTInner::Add { items } => None,
+                                    ASTInner::Integer { value } => {
+                                        let mut new_value = value.to_string();
+                                        new_value.insert(offset.unwrap(), char);
+                                        Some(ASTHistoryEntry {
+                                            previous: vec![],
+                                            peer: "todo".to_owned(),
+                                            value: ASTHistoryEntryInner::SetInteger {
+                                                uuid: elem.clone(),
+                                                value: new_value.parse().unwrap(),
+                                            },
+                                        })
+                                    }
+                                }
+                            })
+                            .collect::<Vec<_>>();
+
+                        operations
+                            .iter()
+                            .for_each(|history| self.ast.apply(history));
                     }
                     _ => {}
                 }
