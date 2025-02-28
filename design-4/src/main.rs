@@ -136,8 +136,15 @@ impl AST {
                 [Span::styled("(", style), Span::styled("+", not_highlighted)]
                     .into_iter()
                     .chain(items.iter().flat_map(|a| {
-                        std::iter::once(Span::styled(" ", not_highlighted))
-                            .chain(a.render(selected))
+                        std::iter::once(Span::styled(
+                            " ",
+                            if selected.contains_key(&a.uuid) {
+                                highlighted
+                            } else {
+                                not_highlighted
+                            },
+                        ))
+                        .chain(a.render(selected))
                     }))
                     .chain(std::iter::once(Span::styled(")", style)))
                     .collect()
@@ -146,8 +153,12 @@ impl AST {
                 if let Some(se) = se {
                     if let Some(se) = se {
                         let before = value.to_string()[..*se].to_owned();
-                        let high = value.to_string()[*se..*se + 1].to_owned();
-                        let after = value.to_string()[*se + 1..].to_owned();
+                        let high = value.to_string()
+                            [*se..std::cmp::min(value.to_string().len(), *se + 1)]
+                            .to_owned();
+                        let after = value.to_string()
+                            [std::cmp::min(value.to_string().len(), *se + 1)..]
+                            .to_owned();
                         vec![
                             Span::styled(before, not_highlighted),
                             Span::styled(high, highlighted),
@@ -345,15 +356,17 @@ impl App {
                             .selected
                             .iter()
                             .filter_map(|(elem, offset)| {
-                                let node = self.ast.get_by_uuid_mut(elem).unwrap();
+                                if let Some(offset) = offset {
+                                    let node = self.ast.get_by_uuid_mut(elem).unwrap();
 
-                                match &node.value {
-                                    ASTInner::Add { items } => {}
-                                    ASTInner::Integer { value } => {
-                                        return Some((
-                                            elem.clone(),
-                                            offset.map(|v| v.saturating_sub(1)).to_owned(),
-                                        ));
+                                    match &node.value {
+                                        ASTInner::Add { items } => {}
+                                        ASTInner::Integer { value } => {
+                                            return Some((
+                                                elem.clone(),
+                                                Some(offset.saturating_sub(1)),
+                                            ));
+                                        }
                                     }
                                 }
 
@@ -379,15 +392,20 @@ impl App {
                             .selected
                             .iter()
                             .filter_map(|(elem, offset)| {
-                                let node = self.ast.get_by_uuid_mut(elem).unwrap();
+                                if let Some(offset) = offset {
+                                    let node = self.ast.get_by_uuid_mut(elem).unwrap();
 
-                                match &node.value {
-                                    ASTInner::Add { items } => {}
-                                    ASTInner::Integer { value } => {
-                                        return Some((
-                                            elem.clone(),
-                                            offset.map(|v| v + 1).to_owned(),
-                                        ));
+                                    match &node.value {
+                                        ASTInner::Add { items } => {}
+                                        ASTInner::Integer { value } => {
+                                            return Some((
+                                                elem.clone(),
+                                                Some(std::cmp::min(
+                                                    value.to_string().len(),
+                                                    offset + 1,
+                                                )),
+                                            ));
+                                        }
                                     }
                                 }
 
