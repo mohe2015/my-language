@@ -143,10 +143,13 @@ impl AST {
                                 Box::new(a.render(selected).into_iter().chain(std::iter::once(
                                     Span::styled(
                                         " ",
-                                        if selected.contains_key(&a.uuid) {
-                                            highlighted
-                                        } else {
-                                            not_highlighted
+                                        match (&a.value, selected.get(&a.uuid)) {
+                                            (ASTInner::Integer { value }, Some(Some(index)))
+                                                if value.to_string().len() == *index =>
+                                            {
+                                                highlighted
+                                            }
+                                            _ => not_highlighted,
                                         },
                                     ),
                                 ))) as _
