@@ -125,7 +125,8 @@ impl AST {
     pub fn render(&self, selected: &HashMap<String, Option<usize>>) -> Vec<Span> {
         let highlighted = Style::new().fg(Color::Black).bg(Color::White);
         let not_highlighted = Style::new().fg(Color::White);
-        let style = if selected.contains_key(&self.uuid) {
+        let se = selected.get(&self.uuid);
+        let style = if se.is_some() {
             highlighted
         } else {
             not_highlighted
@@ -141,7 +142,24 @@ impl AST {
                     .chain(std::iter::once(Span::styled(")", style)))
                     .collect()
             }
-            ASTInner::Integer { value } => vec![Span::styled(value.to_string(), style)],
+            ASTInner::Integer { value } => {
+                if let Some(se) = se {
+                    if let Some(se) = se {
+                        let before = value.to_string()[..*se].to_owned();
+                        let high = value.to_string()[*se..*se + 1].to_owned();
+                        let after = value.to_string()[*se + 1..].to_owned();
+                        vec![
+                            Span::styled(before, not_highlighted),
+                            Span::styled(high, highlighted),
+                            Span::styled(after, not_highlighted),
+                        ]
+                    } else {
+                        vec![Span::styled(value.to_string(), highlighted)]
+                    }
+                } else {
+                    vec![Span::styled(value.to_string(), not_highlighted)]
+                }
+            }
         }
     }
 }
@@ -306,7 +324,7 @@ impl App {
                                     ASTInner::Add { items } => {
                                         (items.first().unwrap().uuid.clone(), None)
                                     }
-                                    ASTInner::Integer { value } => (node.uuid.clone(), None),
+                                    ASTInner::Integer { value } => (node.uuid.clone(), Some(0)),
                                 }
                             })
                             .collect();
