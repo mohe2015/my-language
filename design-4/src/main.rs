@@ -500,6 +500,8 @@ impl App {
 }
 
 fn main() -> std::io::Result<()> {
+    // persist files, maybe take file by argument
+
     let initial_uuid = generate_uuid();
     let ast_peer_1 = vec![ASTHistoryEntry {
         peer: "1".to_string(),
