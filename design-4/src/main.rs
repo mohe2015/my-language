@@ -135,17 +135,24 @@ impl AST {
             ASTInner::Add { items } => {
                 [Span::styled("(", style), Span::styled("+", not_highlighted)]
                     .into_iter()
-                    .chain(items.iter().flat_map(|a| {
-                        std::iter::once(Span::styled(
-                            " ",
-                            if selected.contains_key(&a.uuid) {
-                                highlighted
+                    .chain(items.iter().enumerate().flat_map(
+                        |(idx, a)| -> Box<dyn Iterator<Item = Span<'_>>> {
+                            if idx == items.len() - 1 {
+                                Box::new(a.render(selected).into_iter()) as _
                             } else {
-                                not_highlighted
-                            },
-                        ))
-                        .chain(a.render(selected))
-                    }))
+                                Box::new(a.render(selected).into_iter().chain(std::iter::once(
+                                    Span::styled(
+                                        " ",
+                                        if selected.contains_key(&a.uuid) {
+                                            highlighted
+                                        } else {
+                                            not_highlighted
+                                        },
+                                    ),
+                                ))) as _
+                            }
+                        },
+                    ))
                     .chain(std::iter::once(Span::styled(")", style)))
                     .collect()
             }
