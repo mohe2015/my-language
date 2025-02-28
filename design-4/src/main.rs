@@ -461,6 +461,17 @@ impl App {
                             })
                             .collect::<Vec<_>>();
 
+                        self.selected.iter_mut().for_each(|(elem, offset)| {
+                            let node = self.ast.get_by_uuid_mut(&elem).unwrap();
+
+                            match &node.value {
+                                ASTInner::Add { items } => {}
+                                ASTInner::Integer { value } => {
+                                    *offset = offset.map(|offset| offset + 1);
+                                }
+                            }
+                        });
+
                         operations
                             .iter()
                             .for_each(|history| self.ast.apply(history));
