@@ -285,18 +285,17 @@ impl App {
                             .selected
                             .iter()
                             .filter_map(|(elem, offset)| {
-                                let child = self.ast.get_by_uuid_mut(elem).unwrap().uuid.clone();
-                                let node = self.ast.parent_of_uuid_mut(elem)?;
+                                let parent = self.ast.parent_of_uuid_mut(elem)?;
 
-                                match &node.value {
+                                match &parent.value {
                                     ASTInner::Add { items } => Some(ASTHistoryEntry {
                                         previous: vec![],
                                         peer: "todo".to_owned(),
                                         value: ASTHistoryEntryInner::InsertAtIndex {
-                                            uuid: node.uuid.clone(),
+                                            uuid: parent.uuid.clone(),
                                             index: items
                                                 .iter()
-                                                .position(|item| item.uuid == child)
+                                                .position(|item| item.uuid == *elem)
                                                 .unwrap(),
                                             ast: AST {
                                                 uuid: generate_uuid(),
@@ -346,22 +345,31 @@ impl App {
                             .selected
                             .iter()
                             .filter_map(|(elem, offset)| {
-                                let child = self.ast.get_by_uuid_mut(elem).unwrap().uuid.clone();
-                                let node = self.ast.parent_of_uuid_mut(elem)?;
+                                let node = self.ast.get_by_uuid_mut(elem).unwrap();
 
                                 match &node.value {
+                                    ASTInner::Add { items } => {}
+                                    ASTInner::Integer { value } => {
+                                        return Some((
+                                            elem.clone(),
+                                            offset.map(|v| v.saturating_sub(1)).to_owned(),
+                                        ));
+                                    }
+                                }
+
+                                let parent = self.ast.parent_of_uuid_mut(elem)?;
+
+                                match &parent.value {
                                     ASTInner::Add { items } => {
                                         let index = items
                                             .iter()
-                                            .position(|item| item.uuid == child)
+                                            .position(|item| item.uuid == *elem)
                                             .unwrap();
                                         items
                                             .get(index.saturating_sub(1))
                                             .map(|i| (i.uuid.clone(), None))
                                     }
-                                    ASTInner::Integer { value } => {
-                                        Some((elem.clone(), offset.to_owned()))
-                                    }
+                                    ASTInner::Integer { value } => unreachable!(),
                                 }
                             })
                             .collect();
@@ -371,22 +379,31 @@ impl App {
                             .selected
                             .iter()
                             .filter_map(|(elem, offset)| {
-                                let child = self.ast.get_by_uuid_mut(elem).unwrap().uuid.clone();
-                                let node = self.ast.parent_of_uuid_mut(elem)?;
+                                let node = self.ast.get_by_uuid_mut(elem).unwrap();
 
                                 match &node.value {
+                                    ASTInner::Add { items } => {}
+                                    ASTInner::Integer { value } => {
+                                        return Some((
+                                            elem.clone(),
+                                            offset.map(|v| v + 1).to_owned(),
+                                        ));
+                                    }
+                                }
+
+                                let parent = self.ast.parent_of_uuid_mut(elem)?;
+
+                                match &parent.value {
                                     ASTInner::Add { items } => {
                                         let index = items
                                             .iter()
-                                            .position(|item| item.uuid == child)
+                                            .position(|item| item.uuid == *elem)
                                             .unwrap();
                                         items
                                             .get(std::cmp::min(items.len() - 1, index + 1))
                                             .map(|i| (i.uuid.clone(), None))
                                     }
-                                    ASTInner::Integer { value } => {
-                                        Some((elem.clone(), offset.to_owned()))
-                                    }
+                                    ASTInner::Integer { value } => unreachable!(),
                                 }
                             })
                             .collect();
