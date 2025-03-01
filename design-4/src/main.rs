@@ -33,6 +33,11 @@ pub struct AST {
     value: ASTInner,
 }
 
+pub enum MySpan {
+    Cursor,
+    Text(String, bool),
+}
+
 impl AST {
     /// Check no uuid is duplicated
     pub fn validate(&self) {
@@ -122,68 +127,37 @@ impl AST {
         self.validate();
     }
 
-    pub fn render(&self, selected: &HashMap<String, Option<usize>>) -> Vec<Span> {
-        let highlighted = Style::new().fg(Color::Black).bg(Color::White);
-        let not_highlighted = Style::new().fg(Color::White);
+    pub fn render(&self, selected: &HashMap<String, Option<usize>>) -> Vec<MySpan> {
         let se = selected.get(&self.uuid);
-        let style = if se.is_some() {
-            highlighted
-        } else {
-            not_highlighted
-        };
+        let style = se.is_some();
         match &self.value {
-            ASTInner::Add { items } => {
-                [Span::styled("(", style), Span::styled("+", not_highlighted)]
-                    .into_iter()
-                    .chain(items.iter().enumerate().flat_map(|(idx, a)| {
-                        if idx == items.len() - 1 {
-                            let mut arr = a.render(selected);
-                            if idx == 0 {
-                                arr.insert(0, Span::styled(" ", not_highlighted));
-                            }
-                            arr
-                        } else {
-                            let mut arr = a.render(selected);
-                            if idx == 0 {
-                                arr.insert(0, Span::styled(" ", not_highlighted));
-                            }
-                            arr.push(Span::styled(
-                                " ",
-                                match (&a.value, selected.get(&a.uuid)) {
-                                    (ASTInner::Integer { value }, Some(Some(index)))
-                                        if value.to_string().len() == *index =>
-                                    {
-                                        highlighted
-                                    }
-                                    _ => not_highlighted,
-                                },
-                            ));
-                            arr
-                        }
-                    }))
-                    .chain(std::iter::once(Span::styled(")", style)))
-                    .collect()
-            }
+            ASTInner::Add { items } => [
+                MySpan::Text("(".to_owned(), style),
+                MySpan::Text("+".to_owned(), false),
+            ]
+            .into_iter()
+            .chain(items.iter().enumerate().flat_map(|(idx, a)| {
+                let mut arr = a.render(selected);
+                arr.insert(0, MySpan::Text(" ".to_owned(), false));
+                arr
+            }))
+            .chain(std::iter::once(MySpan::Text(")".to_owned(), style)))
+            .collect(),
             ASTInner::Integer { value } => {
                 if let Some(se) = se {
                     if let Some(se) = se {
                         let before = value.to_string()[..*se].to_owned();
-                        let high = value.to_string()
-                            [*se..std::cmp::min(value.to_string().len(), *se + 1)]
-                            .to_owned();
-                        let after = value.to_string()
-                            [std::cmp::min(value.to_string().len(), *se + 1)..]
-                            .to_owned();
+                        let after = value.to_string()[*se..].to_owned();
                         vec![
-                            Span::styled(before, not_highlighted),
-                            Span::styled(high, highlighted),
-                            Span::styled(after, not_highlighted),
+                            MySpan::Text(before, false),
+                            MySpan::Cursor,
+                            MySpan::Text(after, false),
                         ]
                     } else {
-                        vec![Span::styled(value.to_string(), highlighted)]
+                        vec![MySpan::Text(value.to_string(), true)]
                     }
                 } else {
-                    vec![Span::styled(value.to_string(), not_highlighted)]
+                    vec![MySpan::Text(value.to_string(), false)]
                 }
             }
         }
@@ -493,7 +467,50 @@ impl App {
             .constraints(vec![Constraint::Percentage(100), Constraint::Length(1)])
             .split(frame.area());
 
-        frame.render_widget(Line::from(self.ast.render(&self.selected)), layout[0]);
+        let highlighted = Style::new().fg(Color::Black).bg(Color::White);
+        let not_highlighted = Style::new().fg(Color::White);
+        let binding = self.ast.render(&self.selected);
+        let mut content = binding
+            .iter()
+            .filter(|i| match i {
+                MySpan::Text(text, _) => !text.is_empty(),
+                _ => true,
+            })
+            .peekable();
+        let mut result = Vec::new();
+        while let Some(myspan) = content.next() {
+            match myspan {
+                MySpan::Cursor => {
+                    if content.peek().is_none() {
+                        result.push(Span::styled(" ".to_owned(), highlighted))
+                    }
+                }
+                MySpan::Text(text, is_highlighted) => match content.peek() {
+                    Some(MySpan::Cursor) => {
+                        let (text, text_last) = text.split_at(text.len() - 1);
+                        result.push(Span::styled(
+                            text,
+                            if *is_highlighted {
+                                highlighted
+                            } else {
+                                not_highlighted
+                            },
+                        ));
+                        result.push(Span::styled(text_last, highlighted))
+                    }
+                    _ => result.push(Span::styled(
+                        text,
+                        if *is_highlighted {
+                            highlighted
+                        } else {
+                            not_highlighted
+                        },
+                    )),
+                },
+            }
+        }
+
+        frame.render_widget(Line::from(result), layout[0]);
         frame.render_widget(Line::raw(self.status.clone()), layout[1]);
         //frame.set_cursor_position((5, 0));
     }
