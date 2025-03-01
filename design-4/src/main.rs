@@ -480,33 +480,31 @@ impl App {
         let mut result = Vec::new();
         while let Some(myspan) = content.next() {
             match myspan {
-                MySpan::Cursor => {
-                    if content.peek().is_none() {
-                        result.push(Span::styled(" ".to_owned(), highlighted))
-                    }
-                }
-                MySpan::Text(text, is_highlighted) => match content.peek() {
-                    Some(MySpan::Cursor) => {
-                        let (text, text_last) = text.split_at(text.len() - 1);
+                MySpan::Cursor => match content.peek() {
+                    Some(MySpan::Text(text, is_highlighted)) => {
+                        content.next();
+                        let (text, text_last) = text.split_at(1);
+                        result.push(Span::styled(text, highlighted));
                         result.push(Span::styled(
-                            text,
+                            text_last,
                             if *is_highlighted {
                                 highlighted
                             } else {
                                 not_highlighted
                             },
-                        ));
-                        result.push(Span::styled(text_last, highlighted))
+                        ))
                     }
-                    _ => result.push(Span::styled(
-                        text,
-                        if *is_highlighted {
-                            highlighted
-                        } else {
-                            not_highlighted
-                        },
-                    )),
+                    Some(MySpan::Cursor) => unreachable!(),
+                    None => result.push(Span::styled(" ".to_owned(), highlighted)),
                 },
+                MySpan::Text(text, is_highlighted) => result.push(Span::styled(
+                    text,
+                    if *is_highlighted {
+                        highlighted
+                    } else {
+                        not_highlighted
+                    },
+                )),
             }
         }
 
