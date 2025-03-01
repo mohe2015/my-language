@@ -21,6 +21,7 @@ use ratatui::{
     style::{Color, Style},
     text::{Line, Span},
 };
+use serde::Serialize;
 use sha3::{Digest, Sha3_512};
 
 pub fn generate_uuid() -> String {
@@ -30,7 +31,7 @@ pub fn generate_uuid() -> String {
     base16ct::lower::encode_string(&data)
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize)]
 pub struct AST {
     uuid: String,
     changed_by: String,
@@ -168,7 +169,7 @@ impl AST {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize)]
 enum ASTInner {
     Add {
         items: Vec<AST>, // two users should be allowed to add elements concurrently without conflict? or maybe a light conflict that you can easily resolve?
@@ -178,7 +179,7 @@ enum ASTInner {
     },
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize)]
 pub struct ASTHistoryEntry {
     previous: Vec<String>,
     peer: String, // TODO sign with this peer id
@@ -202,7 +203,7 @@ impl ASTHistoryEntry {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize)]
 enum ASTHistoryEntryInner {
     Initial {
         ast: AST,
@@ -533,15 +534,22 @@ fn main() -> std::io::Result<()> {
                     let stream_clone = stream.try_clone();
                     if let Ok(mut stream_clone) = stream_clone {
                         println!("got new connection");
+                        let send_rx = send_rx.clone();
                         thread::spawn(move || {
                             println!("new thread");
-                            stream_clone.write(&[]).unwrap();
+
+                            while let Ok(rec) = send_rx.recv() {
+                                let serialized = serde_json::to_string(&rec).unwrap();
+                                let len: u64 = serialized.as_bytes().len().try_into().unwrap();
+                                stream_clone.write(&len.to_be_bytes()).unwrap();
+                                stream_clone.write(serialized.as_bytes()).unwrap();
+                            }
                         });
                         thread::spawn(move || {
                             println!("new thread");
                             let mut buf: [u8; 8] = [0; 8];
                             stream.read_exact(&mut buf).unwrap();
-                            let size = u64::from_le_bytes(buf);
+                            let size = u64::from_be_bytes(buf);
                             let mut buf = vec![0; size.try_into().unwrap()];
                             stream.read_exact(&mut buf).unwrap();
 
@@ -572,7 +580,6 @@ fn main() -> std::io::Result<()> {
             },
         },
     }];
-
     ast_peer_1.push(ASTHistoryEntry {
         peer: "2".to_string(),
         previous: vec![ast_peer_1[0].hash()],
@@ -583,19 +590,23 @@ fn main() -> std::io::Result<()> {
     });
 
     let mut ast_peer_1_iter = ast_peer_1.iter();
-    let Some(ASTHistoryEntry {
-        previous,
-        peer,
-        value: ASTHistoryEntryInner::Initial { ast },
-    }) = ast_peer_1_iter.next()
+    let Some(
+        entry @ ASTHistoryEntry {
+            previous,
+            peer,
+            value: ASTHistoryEntryInner::Initial { ast },
+        },
+    ) = ast_peer_1_iter.next()
     else {
         panic!()
     };
     let mut ast = ast.clone();
     println!("{ast:?}");
+    send_tx.send(entry.clone()).unwrap();
 
     for history in ast_peer_1_iter {
         ast.apply(history);
+        send_tx.send(history.clone()).unwrap();
     }
     println!("{ast:?}");
 
