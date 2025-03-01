@@ -1,7 +1,11 @@
+#![feature(mpmc_channel)]
 use std::{
     collections::{HashMap, HashSet},
-    io::stdout,
+    io::{Read as _, Write, stdout},
+    net::{TcpListener, TcpStream},
     panic::{set_hook, take_hook},
+    sync::mpmc::channel,
+    thread,
 };
 
 use rand::RngCore as _;
@@ -515,10 +519,49 @@ impl App {
 }
 
 fn main() -> std::io::Result<()> {
-    // persist files, maybe take file by argument
+    let args: Vec<String> = std::env::args().collect();
+
+    let (send_tx, send_rx) = channel::<ASTHistoryEntry>();
+    let (receive_tx, receive_rx) = channel::<ASTHistoryEntry>();
+
+    match args[1].as_str() {
+        "server" => {
+            let listener = TcpListener::bind("127.0.0.1:1234")?;
+            println!("started server");
+            for stream in listener.incoming() {
+                if let Ok(mut stream) = stream {
+                    let stream_clone = stream.try_clone();
+                    if let Ok(mut stream_clone) = stream_clone {
+                        println!("got new connection");
+                        thread::spawn(move || {
+                            println!("new thread");
+                            stream_clone.write(&[]).unwrap();
+                        });
+                        thread::spawn(move || {
+                            println!("new thread");
+                            let mut buf: [u8; 8] = [0; 8];
+                            stream.read_exact(&mut buf).unwrap();
+                            let size = u64::from_le_bytes(buf);
+                            let mut buf = vec![0; size.try_into().unwrap()];
+                            stream.read_exact(&mut buf).unwrap();
+
+                            println!("got new packet")
+                        });
+                    }
+                }
+            }
+        }
+        "client" => {
+            let mut stream = TcpStream::connect("127.0.0.1:1234")?;
+            println!("connected to server");
+        }
+        other => {
+            panic!("expected `server` or `client` as first argument but got {other}")
+        }
+    }
 
     let initial_uuid = generate_uuid();
-    let ast_peer_1 = vec![ASTHistoryEntry {
+    let mut ast_peer_1 = vec![ASTHistoryEntry {
         peer: "1".to_string(),
         previous: vec![],
         value: ASTHistoryEntryInner::Initial {
@@ -530,29 +573,28 @@ fn main() -> std::io::Result<()> {
         },
     }];
 
-    let mut ast_peer_2 = ast_peer_1.clone();
-    ast_peer_2.push(ASTHistoryEntry {
+    ast_peer_1.push(ASTHistoryEntry {
         peer: "2".to_string(),
-        previous: vec![ast_peer_2[0].hash()],
+        previous: vec![ast_peer_1[0].hash()],
         value: ASTHistoryEntryInner::SetInteger {
             uuid: initial_uuid,
             value: 43,
         },
     });
 
-    let mut ast_peer_2_iter = ast_peer_2.iter();
+    let mut ast_peer_1_iter = ast_peer_1.iter();
     let Some(ASTHistoryEntry {
         previous,
         peer,
         value: ASTHistoryEntryInner::Initial { ast },
-    }) = ast_peer_2_iter.next()
+    }) = ast_peer_1_iter.next()
     else {
         panic!()
     };
     let mut ast = ast.clone();
     println!("{ast:?}");
 
-    for history in ast_peer_2_iter {
+    for history in ast_peer_1_iter {
         ast.apply(history);
     }
     println!("{ast:?}");
