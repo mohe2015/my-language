@@ -1,6 +1,7 @@
 use std::{
     collections::{HashMap, HashSet},
     io::stdout,
+    net::SocketAddr,
     panic::{set_hook, take_hook},
     sync::Arc,
 };
@@ -249,7 +250,7 @@ pub struct App {
     status: String,
     /// UUIDs of selected nodes
     selected: HashMap<String, Option<usize>>,
-    receive: broadcast::Receiver<ASTHistoryEntry>,
+    receive: broadcast::Receiver<(ASTHistoryEntry, SocketAddr)>,
     send: broadcast::Sender<ASTHistoryEntry>,
 }
 
@@ -488,8 +489,9 @@ impl App {
                     }
                 }
                 rec = self.receive.recv() => {
+                    println!("RECEIVED STUFF");
                     if let Ok(rec) = rec {
-                        self.ast.apply(&rec);
+                        self.ast.apply(&rec.0);
                     }
                 }
             }
@@ -553,6 +555,8 @@ impl App {
 async fn main() -> std::io::Result<()> {
     let args: Vec<String> = std::env::args().collect();
 
+    // maybe having a dedicated server and all tuis are clients would be simpler?
+
     // if we reconnect to the server we may want to resend the data too. so maybe have one state with the history?
     // clearly merging is needed then.
     // therefore I think the server should be the authorative source
@@ -569,25 +573,29 @@ async fn main() -> std::io::Result<()> {
 
     // https://doc.rust-lang.org/beta/std/sync/struct.Condvar.html#method.notify_all
 
-    let (mut receive_sender, mut receive_receiver) = broadcast::channel::<ASTHistoryEntry>(16);
+    let (mut receive_sender, mut receive_receiver) =
+        broadcast::channel::<(ASTHistoryEntry, SocketAddr)>(16);
     let (mut send_sender, mut send_receiver) = broadcast::channel::<ASTHistoryEntry>(16);
 
     match args[1].as_str() {
         "server" => {
             {
-                let mut send_receiver = send_receiver.resubscribe();
-                let receive_sender = receive_sender.clone();
-                spawn(async move {
-                    while let Ok(re) = send_receiver.recv().await {
-                        receive_sender.send(re).unwrap();
-                    }
-                });
-            }
-            {
                 let receive_receiver = receive_receiver.resubscribe();
                 let history = history.clone();
                 spawn(async move {
                     let listener = TcpListener::bind("127.0.0.1:1234").await.unwrap();
+
+                    let local_addr = listener.local_addr().unwrap();
+                    {
+                        let mut send_receiver = send_receiver.resubscribe();
+                        let receive_sender = receive_sender.clone();
+                        spawn(async move {
+                            while let Ok(re) = send_receiver.recv().await {
+                                receive_sender.send((re, local_addr)).unwrap();
+                            }
+                        });
+                    }
+
                     println!("started server");
                     while let Ok((mut stream, addr)) = listener.accept().await {
                         println!("got new connection");
@@ -612,7 +620,10 @@ async fn main() -> std::io::Result<()> {
 
                             // TODO FIXME don't send packet back to where it came from
                             while let Ok(rec) = receive_receiver.recv().await {
-                                let serialized = serde_json::to_string(&rec).unwrap();
+                                if rec.1 == addr {
+                                    continue;
+                                }
+                                let serialized = serde_json::to_string(&rec.0).unwrap();
                                 let len: u64 = serialized.as_bytes().len().try_into().unwrap();
                                 println!("send stuff");
                                 write.write(&len.to_be_bytes()).await.unwrap();
@@ -632,7 +643,7 @@ async fn main() -> std::io::Result<()> {
                                 let deserialized: ASTHistoryEntry =
                                     serde_json::from_slice(&buf).unwrap();
 
-                                receive_sender.send(deserialized).unwrap();
+                                receive_sender.send((deserialized, addr)).unwrap();
 
                                 println!("got new packet")
                             }
@@ -670,6 +681,7 @@ async fn main() -> std::io::Result<()> {
         "client" => {
             spawn(async {
                 let mut stream = TcpStream::connect("127.0.0.1:1234").await.unwrap();
+                let local_addr = stream.local_addr().unwrap();
                 let (mut read, mut write) = stream.into_split();
                 spawn(async move {
                     println!("new thread");
@@ -692,9 +704,9 @@ async fn main() -> std::io::Result<()> {
                         read.read_exact(&mut buf).await.unwrap();
                         let deserialized: ASTHistoryEntry = serde_json::from_slice(&buf).unwrap();
 
-                        receive_sender.send(deserialized).unwrap();
+                        println!("got new packet {:?}", deserialized);
 
-                        println!("got new packet")
+                        receive_sender.send((deserialized, local_addr)).unwrap();
                     }
                 });
 
@@ -711,7 +723,7 @@ async fn main() -> std::io::Result<()> {
         ref previous,
         ref peer,
         value: ASTHistoryEntryInner::Initial { ref ast },
-    } = receive_receiver.recv().await.unwrap()
+    } = receive_receiver.recv().await.unwrap().0
     else {
         panic!()
     };
