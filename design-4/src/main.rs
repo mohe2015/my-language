@@ -2,6 +2,7 @@ use std::{
     collections::{HashMap, HashSet},
     io::stdout,
     panic::{set_hook, take_hook},
+    sync::Arc,
 };
 
 use append_only_vec::AppendOnlyVec;
@@ -547,7 +548,7 @@ async fn main() -> std::io::Result<()> {
     // clearly merging is needed then.
     // therefore I think the server should be the authorative source
 
-    let history: AppendOnlyVec<ASTHistoryEntry> = AppendOnlyVec::new();
+    let history: Arc<AppendOnlyVec<ASTHistoryEntry>> = Arc::new(AppendOnlyVec::new());
 
     // server:
     // for each new connection send the full history. then append their changes locally and broadcast to the ui
@@ -574,49 +575,62 @@ async fn main() -> std::io::Result<()> {
 
     match args[1].as_str() {
         "server" => {
-            let receive_receiver = receive_receiver.resubscribe();
-            spawn(async move {
-                let listener = TcpListener::bind("127.0.0.1:1234").await.unwrap();
-                println!("started server");
-                while let Ok((mut stream, addr)) = listener.accept().await {
-                    println!("got new connection");
+            {
+                let receive_receiver = receive_receiver.resubscribe();
+                let history = history.clone();
+                spawn(async move {
+                    let listener = TcpListener::bind("127.0.0.1:1234").await.unwrap();
+                    println!("started server");
+                    while let Ok((mut stream, addr)) = listener.accept().await {
+                        println!("got new connection");
 
-                    let (mut read, mut write) = stream.into_split();
+                        let (mut read, mut write) = stream.into_split();
 
-                    let iter = history.iter();
+                        // broadcast received stuff
+                        let mut receive_receiver = receive_receiver.resubscribe();
+                        let history = history.clone();
+                        spawn(async move {
+                            println!("new thread");
 
-                    // broadcast received stuff
-                    let mut receive_receiver = receive_receiver.resubscribe();
-                    spawn(async move {
-                        println!("new thread");
+                            let iter = history.iter();
 
-                        while let Ok(rec) = receive_receiver.recv().await {
-                            let serialized = serde_json::to_string(&rec).unwrap();
-                            let len: u64 = serialized.as_bytes().len().try_into().unwrap();
-                            println!("send stuff");
-                            write.write(&len.to_be_bytes()).await.unwrap();
-                            write.write(serialized.as_bytes()).await.unwrap();
-                        }
-                    });
-                    let receive_sender = receive_sender.clone();
-                    spawn(async move {
-                        println!("new thread");
-                        loop {
-                            let mut buf: [u8; 8] = [0; 8];
-                            read.read_exact(&mut buf).await.unwrap();
-                            let size = u64::from_be_bytes(buf);
-                            let mut buf = vec![0; size.try_into().unwrap()];
-                            read.read_exact(&mut buf).await.unwrap();
-                            let deserialized: ASTHistoryEntry =
-                                serde_json::from_slice(&buf).unwrap();
+                            for elem in iter {
+                                let serialized = serde_json::to_string(elem).unwrap();
+                                let len: u64 = serialized.as_bytes().len().try_into().unwrap();
+                                println!("send stuff");
+                                write.write(&len.to_be_bytes()).await.unwrap();
+                                write.write(serialized.as_bytes()).await.unwrap();
+                            }
 
-                            receive_sender.send(deserialized).unwrap();
+                            while let Ok(rec) = receive_receiver.recv().await {
+                                let serialized = serde_json::to_string(&rec).unwrap();
+                                let len: u64 = serialized.as_bytes().len().try_into().unwrap();
+                                println!("send stuff");
+                                write.write(&len.to_be_bytes()).await.unwrap();
+                                write.write(serialized.as_bytes()).await.unwrap();
+                            }
+                        });
+                        let receive_sender = receive_sender.clone();
+                        spawn(async move {
+                            println!("new thread");
 
-                            println!("got new packet")
-                        }
-                    });
-                }
-            });
+                            loop {
+                                let mut buf: [u8; 8] = [0; 8];
+                                read.read_exact(&mut buf).await.unwrap();
+                                let size = u64::from_be_bytes(buf);
+                                let mut buf = vec![0; size.try_into().unwrap()];
+                                read.read_exact(&mut buf).await.unwrap();
+                                let deserialized: ASTHistoryEntry =
+                                    serde_json::from_slice(&buf).unwrap();
+
+                                receive_sender.send(deserialized).unwrap();
+
+                                println!("got new packet")
+                            }
+                        });
+                    }
+                });
+            }
 
             let initial_uuid = generate_uuid();
             let first = ASTHistoryEntry {
@@ -631,6 +645,7 @@ async fn main() -> std::io::Result<()> {
                 },
             };
             let first_hash = first.hash();
+            history.push(first.clone());
             send_sender.send(first).unwrap();
             send_sender
                 .send(ASTHistoryEntry {
