@@ -5,6 +5,8 @@ use std::{
 };
 
 use append_only_vec::AppendOnlyVec;
+use crossterm::event::EventStream;
+use futures::StreamExt as _;
 use rand::RngCore as _;
 use ratatui::{
     Frame, Terminal,
@@ -20,7 +22,10 @@ use ratatui::{
 };
 use serde::{Deserialize, Serialize};
 use sha3::{Digest, Sha3_512};
-use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender, unbounded_channel};
+use tokio::{
+    select,
+    sync::mpsc::{UnboundedReceiver, UnboundedSender, unbounded_channel},
+};
 
 pub fn generate_uuid() -> String {
     // get some random data:
@@ -243,224 +248,234 @@ pub struct App {
 }
 
 impl App {
-    fn run_app<B: Backend>(&mut self, terminal: &mut Terminal<B>) -> std::io::Result<()> {
+    async fn run_app<B: Backend>(&mut self, terminal: &mut Terminal<B>) -> std::io::Result<()> {
+        let mut event_stream = EventStream::new();
         loop {
             terminal.draw(|f| self.ui(f))?;
 
-            if let Event::Key(key) = event::read()? {
-                if key.kind == event::KeyEventKind::Release {
-                    // Skip events that are not KeyEventKind::Press
-                    continue;
-                }
-                self.status = "".to_owned();
-                match key.code {
-                    KeyCode::Char('c') if key.modifiers.contains(KeyModifiers::CONTROL) => {
-                        return Ok(());
-                    }
-                    KeyCode::Char('+') => {
-                        let operations = self
-                            .selected
-                            .iter()
-                            .filter_map(|(elem, offset)| {
-                                let node = self.ast.get_by_uuid_mut(elem).unwrap();
-                                match &node.value {
-                                    ASTInner::Add { items } => {
-                                        self.status = "can't wrap + into +".to_owned();
-                                        None
-                                    }
-                                    ASTInner::Integer { value } => Some(ASTHistoryEntry {
-                                        previous: vec![],
-                                        peer: "todo".to_owned(),
-                                        value: ASTHistoryEntryInner::WrapIntegerInAdd {
-                                            uuid: elem.clone(),
-                                        },
-                                    }),
-                                }
-                            })
-                            .collect::<Vec<_>>();
-
-                        operations
-                            .iter()
-                            .for_each(|history| self.ast.apply(history));
-                    }
-                    KeyCode::Char(' ') => {
-                        // insert in list (maybe first simply to the right?)
-
-                        let operations = self
-                            .selected
-                            .iter()
-                            .filter_map(|(elem, offset)| {
-                                let parent = self.ast.parent_of_uuid_mut(elem)?;
-
-                                match &parent.value {
-                                    ASTInner::Add { items } => Some(ASTHistoryEntry {
-                                        previous: vec![],
-                                        peer: "todo".to_owned(),
-                                        value: ASTHistoryEntryInner::InsertAtIndex {
-                                            uuid: parent.uuid.clone(),
-                                            index: items
-                                                .iter()
-                                                .position(|item| item.uuid == *elem)
-                                                .unwrap(),
-                                            ast: AST {
-                                                uuid: generate_uuid(),
-                                                changed_by: "".to_owned(),
-                                                value: ASTInner::Integer { value: 1 },
-                                            },
-                                        },
-                                    }),
-                                    ASTInner::Integer { value } => None,
-                                }
-                            })
-                            .collect::<Vec<_>>();
-
-                        operations
-                            .iter()
-                            .for_each(|history| self.ast.apply(history));
-                    }
-                    KeyCode::Down => {
-                        self.selected = self
-                            .selected
-                            .iter()
-                            .map(|(elem, offset)| {
-                                let node = self.ast.get_by_uuid_mut(elem).unwrap();
-                                match &node.value {
-                                    ASTInner::Add { items } => {
-                                        (items.first().unwrap().uuid.clone(), None)
-                                    }
-                                    ASTInner::Integer { value } => (node.uuid.clone(), Some(0)),
-                                }
-                            })
-                            .collect();
-                    }
-                    KeyCode::Up => {
-                        self.selected = self
-                            .selected
-                            .iter()
-                            .map(|(elem, offset)| {
-                                self.ast
-                                    .parent_of_uuid_mut(elem)
-                                    .map(|item| (item.uuid.clone(), None))
-                                    .unwrap_or((elem.clone(), None))
-                            })
-                            .collect();
-                    }
-                    KeyCode::Left => {
-                        self.selected = self
-                            .selected
-                            .iter()
-                            .filter_map(|(elem, offset)| {
-                                if let Some(offset) = offset {
-                                    let node = self.ast.get_by_uuid_mut(elem).unwrap();
-
-                                    match &node.value {
-                                        ASTInner::Add { items } => {}
-                                        ASTInner::Integer { value } => {
-                                            return Some((
-                                                elem.clone(),
-                                                Some(offset.saturating_sub(1)),
-                                            ));
-                                        }
-                                    }
-                                }
-
-                                let parent = self.ast.parent_of_uuid_mut(elem)?;
-
-                                match &parent.value {
-                                    ASTInner::Add { items } => {
-                                        let index = items
-                                            .iter()
-                                            .position(|item| item.uuid == *elem)
-                                            .unwrap();
-                                        items
-                                            .get(index.saturating_sub(1))
-                                            .map(|i| (i.uuid.clone(), None))
-                                    }
-                                    ASTInner::Integer { value } => unreachable!(),
-                                }
-                            })
-                            .collect();
-                    }
-                    KeyCode::Right => {
-                        self.selected = self
-                            .selected
-                            .iter()
-                            .filter_map(|(elem, offset)| {
-                                if let Some(offset) = offset {
-                                    let node = self.ast.get_by_uuid_mut(elem).unwrap();
-
-                                    match &node.value {
-                                        ASTInner::Add { items } => {}
-                                        ASTInner::Integer { value } => {
-                                            return Some((
-                                                elem.clone(),
-                                                Some(std::cmp::min(
-                                                    value.to_string().len(),
-                                                    offset + 1,
-                                                )),
-                                            ));
-                                        }
-                                    }
-                                }
-
-                                let parent = self.ast.parent_of_uuid_mut(elem)?;
-
-                                match &parent.value {
-                                    ASTInner::Add { items } => {
-                                        let index = items
-                                            .iter()
-                                            .position(|item| item.uuid == *elem)
-                                            .unwrap();
-                                        items
-                                            .get(std::cmp::min(items.len() - 1, index + 1))
-                                            .map(|i| (i.uuid.clone(), None))
-                                    }
-                                    ASTInner::Integer { value } => unreachable!(),
-                                }
-                            })
-                            .collect();
-                    }
-                    KeyCode::Char(char @ '0'..='9') => {
-                        let operations = self
-                            .selected
-                            .iter()
-                            .filter_map(|(elem, offset)| {
-                                let node = self.ast.get_by_uuid_mut(elem).unwrap();
-
-                                match &node.value {
-                                    ASTInner::Add { items } => None,
-                                    ASTInner::Integer { value } => {
-                                        let mut new_value = value.to_string();
-                                        new_value.insert(offset.unwrap(), char);
-                                        Some(ASTHistoryEntry {
-                                            previous: vec![],
-                                            peer: "todo".to_owned(),
-                                            value: ASTHistoryEntryInner::SetInteger {
-                                                uuid: elem.clone(),
-                                                value: new_value.parse().unwrap(),
-                                            },
-                                        })
-                                    }
-                                }
-                            })
-                            .collect::<Vec<_>>();
-
-                        self.selected.iter_mut().for_each(|(elem, offset)| {
-                            let node = self.ast.get_by_uuid_mut(&elem).unwrap();
-
-                            match &node.value {
-                                ASTInner::Add { items } => {}
-                                ASTInner::Integer { value } => {
-                                    *offset = offset.map(|offset| offset + 1);
-                                }
+            select! {
+                event = event_stream.next() => {
+                    if let Some(Ok(Event::Key(key))) = event {
+                        if key.kind == event::KeyEventKind::Release {
+                            // Skip events that are not KeyEventKind::Press
+                            continue;
+                        }
+                        self.status = "".to_owned();
+                        match key.code {
+                            KeyCode::Char('c') if key.modifiers.contains(KeyModifiers::CONTROL) => {
+                                return Ok(());
                             }
-                        });
+                            KeyCode::Char('+') => {
+                                let operations = self
+                                    .selected
+                                    .iter()
+                                    .filter_map(|(elem, offset)| {
+                                        let node = self.ast.get_by_uuid_mut(elem).unwrap();
+                                        match &node.value {
+                                            ASTInner::Add { items } => {
+                                                self.status = "can't wrap + into +".to_owned();
+                                                None
+                                            }
+                                            ASTInner::Integer { value } => Some(ASTHistoryEntry {
+                                                previous: vec![],
+                                                peer: "todo".to_owned(),
+                                                value: ASTHistoryEntryInner::WrapIntegerInAdd {
+                                                    uuid: elem.clone(),
+                                                },
+                                            }),
+                                        }
+                                    })
+                                    .collect::<Vec<_>>();
 
-                        operations
-                            .iter()
-                            .for_each(|history| self.ast.apply(history));
+                                operations
+                                    .iter()
+                                    .for_each(|history| self.ast.apply(history));
+                            }
+                            KeyCode::Char(' ') => {
+                                // insert in list (maybe first simply to the right?)
+
+                                let operations = self
+                                    .selected
+                                    .iter()
+                                    .filter_map(|(elem, offset)| {
+                                        let parent = self.ast.parent_of_uuid_mut(elem)?;
+
+                                        match &parent.value {
+                                            ASTInner::Add { items } => Some(ASTHistoryEntry {
+                                                previous: vec![],
+                                                peer: "todo".to_owned(),
+                                                value: ASTHistoryEntryInner::InsertAtIndex {
+                                                    uuid: parent.uuid.clone(),
+                                                    index: items
+                                                        .iter()
+                                                        .position(|item| item.uuid == *elem)
+                                                        .unwrap(),
+                                                    ast: AST {
+                                                        uuid: generate_uuid(),
+                                                        changed_by: "".to_owned(),
+                                                        value: ASTInner::Integer { value: 1 },
+                                                    },
+                                                },
+                                            }),
+                                            ASTInner::Integer { value } => None,
+                                        }
+                                    })
+                                    .collect::<Vec<_>>();
+
+                                operations
+                                    .iter()
+                                    .for_each(|history| self.ast.apply(history));
+                            }
+                            KeyCode::Down => {
+                                self.selected = self
+                                    .selected
+                                    .iter()
+                                    .map(|(elem, offset)| {
+                                        let node = self.ast.get_by_uuid_mut(elem).unwrap();
+                                        match &node.value {
+                                            ASTInner::Add { items } => {
+                                                (items.first().unwrap().uuid.clone(), None)
+                                            }
+                                            ASTInner::Integer { value } => (node.uuid.clone(), Some(0)),
+                                        }
+                                    })
+                                    .collect();
+                            }
+                            KeyCode::Up => {
+                                self.selected = self
+                                    .selected
+                                    .iter()
+                                    .map(|(elem, offset)| {
+                                        self.ast
+                                            .parent_of_uuid_mut(elem)
+                                            .map(|item| (item.uuid.clone(), None))
+                                            .unwrap_or((elem.clone(), None))
+                                    })
+                                    .collect();
+                            }
+                            KeyCode::Left => {
+                                self.selected = self
+                                    .selected
+                                    .iter()
+                                    .filter_map(|(elem, offset)| {
+                                        if let Some(offset) = offset {
+                                            let node = self.ast.get_by_uuid_mut(elem).unwrap();
+
+                                            match &node.value {
+                                                ASTInner::Add { items } => {}
+                                                ASTInner::Integer { value } => {
+                                                    return Some((
+                                                        elem.clone(),
+                                                        Some(offset.saturating_sub(1)),
+                                                    ));
+                                                }
+                                            }
+                                        }
+
+                                        let parent = self.ast.parent_of_uuid_mut(elem)?;
+
+                                        match &parent.value {
+                                            ASTInner::Add { items } => {
+                                                let index = items
+                                                    .iter()
+                                                    .position(|item| item.uuid == *elem)
+                                                    .unwrap();
+                                                items
+                                                    .get(index.saturating_sub(1))
+                                                    .map(|i| (i.uuid.clone(), None))
+                                            }
+                                            ASTInner::Integer { value } => unreachable!(),
+                                        }
+                                    })
+                                    .collect();
+                            }
+                            KeyCode::Right => {
+                                self.selected = self
+                                    .selected
+                                    .iter()
+                                    .filter_map(|(elem, offset)| {
+                                        if let Some(offset) = offset {
+                                            let node = self.ast.get_by_uuid_mut(elem).unwrap();
+
+                                            match &node.value {
+                                                ASTInner::Add { items } => {}
+                                                ASTInner::Integer { value } => {
+                                                    return Some((
+                                                        elem.clone(),
+                                                        Some(std::cmp::min(
+                                                            value.to_string().len(),
+                                                            offset + 1,
+                                                        )),
+                                                    ));
+                                                }
+                                            }
+                                        }
+
+                                        let parent = self.ast.parent_of_uuid_mut(elem)?;
+
+                                        match &parent.value {
+                                            ASTInner::Add { items } => {
+                                                let index = items
+                                                    .iter()
+                                                    .position(|item| item.uuid == *elem)
+                                                    .unwrap();
+                                                items
+                                                    .get(std::cmp::min(items.len() - 1, index + 1))
+                                                    .map(|i| (i.uuid.clone(), None))
+                                            }
+                                            ASTInner::Integer { value } => unreachable!(),
+                                        }
+                                    })
+                                    .collect();
+                            }
+                            KeyCode::Char(char @ '0'..='9') => {
+                                let operations = self
+                                    .selected
+                                    .iter()
+                                    .filter_map(|(elem, offset)| {
+                                        let node = self.ast.get_by_uuid_mut(elem).unwrap();
+
+                                        match &node.value {
+                                            ASTInner::Add { items } => None,
+                                            ASTInner::Integer { value } => {
+                                                let mut new_value = value.to_string();
+                                                new_value.insert(offset.unwrap(), char);
+                                                Some(ASTHistoryEntry {
+                                                    previous: vec![],
+                                                    peer: "todo".to_owned(),
+                                                    value: ASTHistoryEntryInner::SetInteger {
+                                                        uuid: elem.clone(),
+                                                        value: new_value.parse().unwrap(),
+                                                    },
+                                                })
+                                            }
+                                        }
+                                    })
+                                    .collect::<Vec<_>>();
+
+                                self.selected.iter_mut().for_each(|(elem, offset)| {
+                                    let node = self.ast.get_by_uuid_mut(&elem).unwrap();
+
+                                    match &node.value {
+                                        ASTInner::Add { items } => {}
+                                        ASTInner::Integer { value } => {
+                                            *offset = offset.map(|offset| offset + 1);
+                                        }
+                                    }
+                                });
+
+                                operations
+                                    .iter()
+                                    .for_each(|history| self.ast.apply(history));
+                            }
+                            _ => {}
+                        }
                     }
-                    _ => {}
+                }
+                rec = self.receive.recv() => {
+                    if let Some(rec) = rec {
+                        self.ast.apply(&rec);
+                    }
                 }
             }
         }
@@ -686,7 +701,7 @@ async fn main() -> std::io::Result<()> {
         receive: receive_receiver,
         send: send_sender,
     };
-    app.run_app(&mut tui)?;
+    app.run_app(&mut tui).await?;
     restore_tui()?;
 
     println!("{:?}", app.ast);
