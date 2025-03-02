@@ -21,7 +21,7 @@ use ratatui::{
     style::{Color, Style},
     text::{Line, Span},
 };
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use sha3::{Digest, Sha3_512};
 
 pub fn generate_uuid() -> String {
@@ -31,7 +31,7 @@ pub fn generate_uuid() -> String {
     base16ct::lower::encode_string(&data)
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AST {
     uuid: String,
     changed_by: String,
@@ -169,7 +169,7 @@ impl AST {
     }
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 enum ASTInner {
     Add {
         items: Vec<AST>, // two users should be allowed to add elements concurrently without conflict? or maybe a light conflict that you can easily resolve?
@@ -179,7 +179,7 @@ enum ASTInner {
     },
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ASTHistoryEntry {
     previous: Vec<String>,
     peer: String, // TODO sign with this peer id
@@ -203,7 +203,7 @@ impl ASTHistoryEntry {
     }
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 enum ASTHistoryEntryInner {
     Initial {
         ast: AST,
@@ -527,40 +527,99 @@ fn main() -> std::io::Result<()> {
 
     match args[1].as_str() {
         "server" => {
-            let listener = TcpListener::bind("127.0.0.1:1234")?;
-            println!("started server");
-            for stream in listener.incoming() {
-                if let Ok(mut stream) = stream {
-                    let stream_clone = stream.try_clone();
-                    if let Ok(mut stream_clone) = stream_clone {
-                        println!("got new connection");
-                        let send_rx = send_rx.clone();
-                        thread::spawn(move || {
-                            println!("new thread");
+            thread::spawn(move || {
+                let listener = TcpListener::bind("127.0.0.1:1234").unwrap();
+                println!("started server");
+                for stream in listener.incoming() {
+                    if let Ok(mut stream) = stream {
+                        let stream_clone = stream.try_clone();
+                        if let Ok(mut stream_clone) = stream_clone {
+                            println!("got new connection");
+                            let send_rx = send_rx.clone(); // question is whether this starts from the beginning or where we currently are
+                            let receive_tx = receive_tx.clone();
+                            thread::spawn(move || {
+                                println!("new thread");
 
-                            while let Ok(rec) = send_rx.recv() {
-                                let serialized = serde_json::to_string(&rec).unwrap();
-                                let len: u64 = serialized.as_bytes().len().try_into().unwrap();
-                                stream_clone.write(&len.to_be_bytes()).unwrap();
-                                stream_clone.write(serialized.as_bytes()).unwrap();
-                            }
-                        });
-                        thread::spawn(move || {
-                            println!("new thread");
-                            let mut buf: [u8; 8] = [0; 8];
-                            stream.read_exact(&mut buf).unwrap();
-                            let size = u64::from_be_bytes(buf);
-                            let mut buf = vec![0; size.try_into().unwrap()];
-                            stream.read_exact(&mut buf).unwrap();
+                                while let Ok(rec) = send_rx.recv() {
+                                    let serialized = serde_json::to_string(&rec).unwrap();
+                                    let len: u64 = serialized.as_bytes().len().try_into().unwrap();
+                                    stream_clone.write(&len.to_be_bytes()).unwrap();
+                                    stream_clone.write(serialized.as_bytes()).unwrap();
+                                }
+                            });
+                            thread::spawn(move || {
+                                println!("new thread");
+                                let mut buf: [u8; 8] = [0; 8];
+                                stream.read_exact(&mut buf).unwrap();
+                                let size = u64::from_be_bytes(buf);
+                                let mut buf = vec![0; size.try_into().unwrap()];
+                                stream.read_exact(&mut buf).unwrap();
+                                let deserialized: ASTHistoryEntry =
+                                    serde_json::from_slice(&buf).unwrap();
 
-                            println!("got new packet")
-                        });
+                                receive_tx.send(deserialized).unwrap();
+
+                                println!("got new packet")
+                            });
+                        }
                     }
                 }
-            }
+            });
+
+            let initial_uuid = generate_uuid();
+            let first = ASTHistoryEntry {
+                peer: "1".to_string(),
+                previous: vec![],
+                value: ASTHistoryEntryInner::Initial {
+                    ast: AST {
+                        uuid: initial_uuid.clone(),
+                        changed_by: generate_uuid(),
+                        value: ASTInner::Integer { value: 42 },
+                    },
+                },
+            };
+            let first_hash = first.hash();
+            send_tx.send(first).unwrap();
+            send_tx
+                .send(ASTHistoryEntry {
+                    peer: "2".to_string(),
+                    previous: vec![first_hash],
+                    value: ASTHistoryEntryInner::SetInteger {
+                        uuid: initial_uuid,
+                        value: 43,
+                    },
+                })
+                .unwrap();
         }
         "client" => {
             let mut stream = TcpStream::connect("127.0.0.1:1234")?;
+            let stream_clone = stream.try_clone();
+            if let Ok(mut stream_clone) = stream_clone {
+                thread::spawn(move || {
+                    println!("new thread");
+
+                    while let Ok(rec) = send_rx.recv() {
+                        let serialized = serde_json::to_string(&rec).unwrap();
+                        let len: u64 = serialized.as_bytes().len().try_into().unwrap();
+                        stream_clone.write(&len.to_be_bytes()).unwrap();
+                        stream_clone.write(serialized.as_bytes()).unwrap();
+                    }
+                });
+                thread::spawn(move || {
+                    println!("new thread");
+                    let mut buf: [u8; 8] = [0; 8];
+                    stream.read_exact(&mut buf).unwrap();
+                    let size = u64::from_be_bytes(buf);
+                    let mut buf = vec![0; size.try_into().unwrap()];
+                    stream.read_exact(&mut buf).unwrap();
+                    let deserialized: ASTHistoryEntry = serde_json::from_slice(&buf).unwrap();
+
+                    receive_tx.send(deserialized).unwrap();
+
+                    println!("got new packet")
+                });
+            }
+
             println!("connected to server");
         }
         other => {
@@ -568,35 +627,11 @@ fn main() -> std::io::Result<()> {
         }
     }
 
-    let initial_uuid = generate_uuid();
-    let mut ast_peer_1 = vec![ASTHistoryEntry {
-        peer: "1".to_string(),
-        previous: vec![],
-        value: ASTHistoryEntryInner::Initial {
-            ast: AST {
-                uuid: initial_uuid.clone(),
-                changed_by: generate_uuid(),
-                value: ASTInner::Integer { value: 42 },
-            },
-        },
-    }];
-    ast_peer_1.push(ASTHistoryEntry {
-        peer: "2".to_string(),
-        previous: vec![ast_peer_1[0].hash()],
-        value: ASTHistoryEntryInner::SetInteger {
-            uuid: initial_uuid,
-            value: 43,
-        },
-    });
-
-    let mut ast_peer_1_iter = ast_peer_1.iter();
-    let Some(
-        entry @ ASTHistoryEntry {
-            previous,
-            peer,
-            value: ASTHistoryEntryInner::Initial { ast },
-        },
-    ) = ast_peer_1_iter.next()
+    let ref entry @ ASTHistoryEntry {
+        ref previous,
+        ref peer,
+        value: ASTHistoryEntryInner::Initial { ref ast },
+    } = receive_rx.recv().unwrap()
     else {
         panic!()
     };
@@ -604,9 +639,8 @@ fn main() -> std::io::Result<()> {
     println!("{ast:?}");
     send_tx.send(entry.clone()).unwrap();
 
-    for history in ast_peer_1_iter {
-        ast.apply(history);
-        send_tx.send(history.clone()).unwrap();
+    while let history = receive_rx.recv().unwrap() {
+        ast.apply(&history);
     }
     println!("{ast:?}");
 
