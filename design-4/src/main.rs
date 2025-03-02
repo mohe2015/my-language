@@ -1,13 +1,10 @@
-#![feature(mpmc_channel)]
 use std::{
     collections::{HashMap, HashSet},
-    io::{Read as _, Write, stdout},
-    net::{TcpListener, TcpStream},
+    io::stdout,
     panic::{set_hook, take_hook},
-    sync::mpmc::channel,
-    thread,
 };
 
+use append_only_vec::AppendOnlyVec;
 use rand::RngCore as _;
 use ratatui::{
     Frame, Terminal,
@@ -23,6 +20,7 @@ use ratatui::{
 };
 use serde::{Deserialize, Serialize};
 use sha3::{Digest, Sha3_512};
+use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender, unbounded_channel};
 
 pub fn generate_uuid() -> String {
     // get some random data:
@@ -240,6 +238,8 @@ pub struct App {
     status: String,
     /// UUIDs of selected nodes
     selected: HashMap<String, Option<usize>>,
+    receive: UnboundedReceiver<ASTHistoryEntry>,
+    send: UnboundedSender<ASTHistoryEntry>,
 }
 
 impl App {
@@ -519,12 +519,27 @@ impl App {
     }
 }
 
-fn main() -> std::io::Result<()> {
+#[tokio::main]
+async fn main() -> std::io::Result<()> {
     let args: Vec<String> = std::env::args().collect();
 
-    let (send_tx, send_rx) = channel::<ASTHistoryEntry>();
-    let (receive_tx, receive_rx) = channel::<ASTHistoryEntry>();
+    // if we reconnect to the server we may want to resend the data too. so maybe have one state with the history?
+    // clearly merging is needed then.
+    // therefore I think the server should be the authorative source
 
+    let history: AppendOnlyVec<ASTHistoryEntry> = AppendOnlyVec::new();
+
+    // server:
+    // for each new connection send the full history. then append their changes locally and broadcast to the ui
+    // ui can send changes over other channel
+
+    // client
+    // receive changes from remote and broadcast to ui
+    // ui can send changes over other channel
+
+    // https://doc.rust-lang.org/beta/std/sync/struct.Condvar.html#method.notify_all
+
+    /*
     match args[1].as_str() {
         "server" => {
             thread::spawn(move || {
@@ -535,7 +550,9 @@ fn main() -> std::io::Result<()> {
                         let stream_clone = stream.try_clone();
                         if let Ok(mut stream_clone) = stream_clone {
                             println!("got new connection");
-                            let send_rx = send_rx.clone(); // question is whether this starts from the beginning or where we currently are
+
+                            let iter = history.iter();
+
                             let receive_tx = receive_tx.clone();
                             thread::spawn(move || {
                                 println!("new thread");
@@ -634,23 +651,20 @@ fn main() -> std::io::Result<()> {
         other => {
             panic!("expected `server` or `client` as first argument but got {other}")
         }
-    }
+    }*/
+
+    let (receive_sender, mut receive_receiver) = unbounded_channel::<ASTHistoryEntry>();
+    let (send_sender, send_receiver) = unbounded_channel::<ASTHistoryEntry>();
 
     let ref entry @ ASTHistoryEntry {
         ref previous,
         ref peer,
         value: ASTHistoryEntryInner::Initial { ref ast },
-    } = receive_rx.recv().unwrap()
+    } = receive_receiver.recv().await.unwrap()
     else {
         panic!()
     };
     let mut ast = ast.clone();
-    println!("{ast:?}");
-
-    while let history = receive_rx.recv().unwrap() {
-        ast.apply(&history);
-        println!("{ast:?}");
-    }
     println!("{ast:?}");
 
     // peer to peer is cool
@@ -665,11 +679,12 @@ fn main() -> std::io::Result<()> {
         original_hook(panic_info);
     }));
     let mut tui = init_tui()?;
-    tui.draw(|frame| frame.render_widget(Span::from("Hello, world!"), frame.area()))?;
     let mut app = App {
         status: "Hello world".to_owned(),
         selected: HashMap::from([(ast.uuid.clone(), None)]),
         ast,
+        receive: receive_receiver,
+        send: send_sender,
     };
     app.run_app(&mut tui)?;
     restore_tui()?;
