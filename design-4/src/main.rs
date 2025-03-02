@@ -572,18 +572,17 @@ async fn main() -> std::io::Result<()> {
     let (mut receive_sender, mut receive_receiver) = broadcast::channel::<ASTHistoryEntry>(16);
     let (mut send_sender, mut send_receiver) = broadcast::channel::<ASTHistoryEntry>(16);
 
-    {
-        let mut send_receiver = send_receiver.resubscribe();
-        let receive_sender = receive_sender.clone();
-        spawn(async move {
-            while let Ok(re) = send_receiver.recv().await {
-                receive_sender.send(re).unwrap();
-            }
-        });
-    }
-
     match args[1].as_str() {
         "server" => {
+            {
+                let mut send_receiver = send_receiver.resubscribe();
+                let receive_sender = receive_sender.clone();
+                spawn(async move {
+                    while let Ok(re) = send_receiver.recv().await {
+                        receive_sender.send(re).unwrap();
+                    }
+                });
+            }
             {
                 let receive_receiver = receive_receiver.resubscribe();
                 let history = history.clone();
@@ -611,6 +610,7 @@ async fn main() -> std::io::Result<()> {
                                 write.write(serialized.as_bytes()).await.unwrap();
                             }
 
+                            // TODO FIXME don't send packet back to where it came from
                             while let Ok(rec) = receive_receiver.recv().await {
                                 let serialized = serde_json::to_string(&rec).unwrap();
                                 let len: u64 = serialized.as_bytes().len().try_into().unwrap();
