@@ -489,7 +489,7 @@ impl App {
                     }
                 }
                 rec = self.receive.recv() => {
-                    println!("RECEIVED STUFF");
+                    // println!("RECEIVED STUFF");
                     if let Ok(rec) = rec {
                         self.ast.apply(&rec.0);
                     }
@@ -557,21 +557,7 @@ async fn main() -> std::io::Result<()> {
 
     // maybe having a dedicated server and all tuis are clients would be simpler?
 
-    // if we reconnect to the server we may want to resend the data too. so maybe have one state with the history?
-    // clearly merging is needed then.
-    // therefore I think the server should be the authorative source
-
     let history: Arc<AppendOnlyVec<ASTHistoryEntry>> = Arc::new(AppendOnlyVec::new());
-
-    // server:
-    // for each new connection send the full history. then append their changes locally and broadcast to the ui
-    // ui can send changes over other channel
-
-    // client
-    // receive changes from remote and broadcast to ui
-    // ui can send changes over other channel
-
-    // https://doc.rust-lang.org/beta/std/sync/struct.Condvar.html#method.notify_all
 
     let (mut receive_sender, mut receive_receiver) =
         broadcast::channel::<(ASTHistoryEntry, SocketAddr)>(16);
@@ -596,9 +582,9 @@ async fn main() -> std::io::Result<()> {
                         });
                     }
 
-                    println!("started server");
+                    // println!("started server");
                     while let Ok((mut stream, addr)) = listener.accept().await {
-                        println!("got new connection");
+                        // println!("got new connection");
 
                         let (mut read, mut write) = stream.into_split();
 
@@ -606,14 +592,14 @@ async fn main() -> std::io::Result<()> {
                         let mut receive_receiver = receive_receiver.resubscribe();
                         let history = history.clone();
                         spawn(async move {
-                            println!("new thread");
+                            // println!("new thread");
 
                             let iter = history.iter();
 
                             for elem in iter {
                                 let serialized = serde_json::to_string(elem).unwrap();
                                 let len: u64 = serialized.as_bytes().len().try_into().unwrap();
-                                println!("send stuff");
+                                // println!("send stuff");
                                 write.write(&len.to_be_bytes()).await.unwrap();
                                 write.write(serialized.as_bytes()).await.unwrap();
                             }
@@ -625,14 +611,14 @@ async fn main() -> std::io::Result<()> {
                                 }
                                 let serialized = serde_json::to_string(&rec.0).unwrap();
                                 let len: u64 = serialized.as_bytes().len().try_into().unwrap();
-                                println!("send stuff");
+                                // println!("send stuff");
                                 write.write(&len.to_be_bytes()).await.unwrap();
                                 write.write(serialized.as_bytes()).await.unwrap();
                             }
                         });
                         let receive_sender = receive_sender.clone();
                         spawn(async move {
-                            println!("new thread");
+                            // println!("new thread");
 
                             loop {
                                 let mut buf: [u8; 8] = [0; 8];
@@ -645,7 +631,7 @@ async fn main() -> std::io::Result<()> {
 
                                 receive_sender.send((deserialized, addr)).unwrap();
 
-                                println!("got new packet")
+                                // println!("got new packet")
                             }
                         });
                     }
@@ -684,18 +670,18 @@ async fn main() -> std::io::Result<()> {
                 let local_addr = stream.local_addr().unwrap();
                 let (mut read, mut write) = stream.into_split();
                 spawn(async move {
-                    println!("new thread");
+                    // println!("new thread");
 
                     while let Ok(rec) = send_receiver.recv().await {
                         let serialized = serde_json::to_string(&rec).unwrap();
                         let len: u64 = serialized.as_bytes().len().try_into().unwrap();
-                        println!("send stuff");
+                        // println!("send stuff");
                         write.write(&len.to_be_bytes()).await.unwrap();
                         write.write(serialized.as_bytes()).await.unwrap();
                     }
                 });
                 spawn(async move {
-                    println!("new thread");
+                    // println!("new thread");
                     let mut buf: [u8; 8] = [0; 8];
                     loop {
                         read.read_exact(&mut buf).await.unwrap();
@@ -704,13 +690,13 @@ async fn main() -> std::io::Result<()> {
                         read.read_exact(&mut buf).await.unwrap();
                         let deserialized: ASTHistoryEntry = serde_json::from_slice(&buf).unwrap();
 
-                        println!("got new packet {:?}", deserialized);
+                        // println!("got new packet {:?}", deserialized);
 
                         receive_sender.send((deserialized, local_addr)).unwrap();
                     }
                 });
 
-                println!("connected to server");
+                // println!("connected to server");
             });
         }
         other => {
@@ -718,7 +704,7 @@ async fn main() -> std::io::Result<()> {
         }
     }
 
-    println!("waiting for initial?");
+    // println!("waiting for initial?");
     let ref entry @ ASTHistoryEntry {
         ref previous,
         ref peer,
@@ -728,7 +714,7 @@ async fn main() -> std::io::Result<()> {
         panic!()
     };
     let mut ast = ast.clone();
-    println!("{ast:?}");
+    // println!("{ast:?}");
 
     // peer to peer is cool
 
@@ -752,7 +738,7 @@ async fn main() -> std::io::Result<()> {
     app.run_app(&mut tui).await?;
     restore_tui()?;
 
-    println!("{:?}", app.ast);
+    // println!("{:?}", app.ast);
 
     Ok(())
 }
