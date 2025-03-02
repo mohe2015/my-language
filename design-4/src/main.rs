@@ -559,16 +559,19 @@ async fn main() -> std::io::Result<()> {
 
     // https://doc.rust-lang.org/beta/std/sync/struct.Condvar.html#method.notify_all
 
-    let (receive_sender, mut receive_receiver) = broadcast::channel::<ASTHistoryEntry>(16);
-    let (send_sender, send_receiver) = broadcast::channel::<ASTHistoryEntry>(16);
+    let (mut receive_sender, mut receive_receiver) = broadcast::channel::<ASTHistoryEntry>(16);
+    let (mut send_sender, mut send_receiver) = broadcast::channel::<ASTHistoryEntry>(16);
 
     match args[1].as_str() {
         "server" => {
+            let receive_receiver = receive_receiver.resubscribe();
             spawn(async move {
                 let listener = TcpListener::bind("127.0.0.1:1234").await.unwrap();
                 println!("started server");
                 while let Ok((mut stream, addr)) = listener.accept().await {
                     println!("got new connection");
+
+                    let (mut read, mut write) = stream.into_split();
 
                     let iter = history.iter();
 
@@ -580,18 +583,19 @@ async fn main() -> std::io::Result<()> {
                             let serialized = serde_json::to_string(&rec).unwrap();
                             let len: u64 = serialized.as_bytes().len().try_into().unwrap();
                             println!("send stuff");
-                            stream.write(&len.to_be_bytes()).await.unwrap();
-                            stream.write(serialized.as_bytes()).await.unwrap();
+                            write.write(&len.to_be_bytes()).await.unwrap();
+                            write.write(serialized.as_bytes()).await.unwrap();
                         }
                     });
+                    let receive_sender = receive_sender.clone();
                     spawn(async move {
                         println!("new thread");
                         loop {
                             let mut buf: [u8; 8] = [0; 8];
-                            stream.read_exact(&mut buf).await.unwrap();
+                            read.read_exact(&mut buf).await.unwrap();
                             let size = u64::from_be_bytes(buf);
                             let mut buf = vec![0; size.try_into().unwrap()];
-                            stream.read_exact(&mut buf).await.unwrap();
+                            read.read_exact(&mut buf).await.unwrap();
                             let deserialized: ASTHistoryEntry =
                                 serde_json::from_slice(&buf).unwrap();
 
@@ -631,6 +635,7 @@ async fn main() -> std::io::Result<()> {
         "client" => {
             spawn(async {
                 let mut stream = TcpStream::connect("127.0.0.1:1234").await.unwrap();
+                let (mut read, mut write) = stream.into_split();
                 spawn(async move {
                     println!("new thread");
 
@@ -638,18 +643,18 @@ async fn main() -> std::io::Result<()> {
                         let serialized = serde_json::to_string(&rec).unwrap();
                         let len: u64 = serialized.as_bytes().len().try_into().unwrap();
                         println!("send stuff");
-                        stream.write(&len.to_be_bytes()).await.unwrap();
-                        stream.write(serialized.as_bytes()).await.unwrap();
+                        write.write(&len.to_be_bytes()).await.unwrap();
+                        write.write(serialized.as_bytes()).await.unwrap();
                     }
                 });
                 spawn(async move {
                     println!("new thread");
                     let mut buf: [u8; 8] = [0; 8];
                     loop {
-                        stream.read_exact(&mut buf).await.unwrap();
+                        read.read_exact(&mut buf).await.unwrap();
                         let size = u64::from_be_bytes(buf);
                         let mut buf = vec![0; size.try_into().unwrap()];
-                        stream.read_exact(&mut buf).await.unwrap();
+                        read.read_exact(&mut buf).await.unwrap();
                         let deserialized: ASTHistoryEntry = serde_json::from_slice(&buf).unwrap();
 
                         receive_sender.send(deserialized).unwrap();
