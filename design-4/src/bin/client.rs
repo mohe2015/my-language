@@ -563,145 +563,66 @@ async fn main() -> std::io::Result<()> {
         broadcast::channel::<(ASTHistoryEntry, SocketAddr)>(16);
     let (mut send_sender, mut send_receiver) = broadcast::channel::<ASTHistoryEntry>(16);
 
-    match args[1].as_str() {
-        "server" => {
-            {
-                let receive_receiver = receive_receiver.resubscribe();
-                let history = history.clone();
-                spawn(async move {
-                    let listener = TcpListener::bind("127.0.0.1:1234").await.unwrap();
+    spawn(async {
+        let mut stream = TcpStream::connect("127.0.0.1:1234").await.unwrap();
+        let local_addr = stream.local_addr().unwrap();
+        let (mut read, mut write) = stream.into_split();
+        spawn(async move {
+            // println!("new thread");
 
-                    let local_addr = listener.local_addr().unwrap();
-                    {
-                        let mut send_receiver = send_receiver.resubscribe();
-                        let receive_sender = receive_sender.clone();
-                        spawn(async move {
-                            while let Ok(re) = send_receiver.recv().await {
-                                receive_sender.send((re, local_addr)).unwrap();
-                            }
-                        });
-                    }
-
-                    // println!("started server");
-                    while let Ok((mut stream, addr)) = listener.accept().await {
-                        // println!("got new connection");
-
-                        let (mut read, mut write) = stream.into_split();
-
-                        // broadcast received stuff
-                        let mut receive_receiver = receive_receiver.resubscribe();
-                        let history = history.clone();
-                        spawn(async move {
-                            // println!("new thread");
-
-                            let iter = history.iter();
-
-                            for elem in iter {
-                                let serialized = serde_json::to_string(elem).unwrap();
-                                let len: u64 = serialized.as_bytes().len().try_into().unwrap();
-                                // println!("send stuff");
-                                write.write(&len.to_be_bytes()).await.unwrap();
-                                write.write(serialized.as_bytes()).await.unwrap();
-                            }
-
-                            // TODO FIXME don't send packet back to where it came from
-                            while let Ok(rec) = receive_receiver.recv().await {
-                                if rec.1 == addr {
-                                    continue;
-                                }
-                                let serialized = serde_json::to_string(&rec.0).unwrap();
-                                let len: u64 = serialized.as_bytes().len().try_into().unwrap();
-                                // println!("send stuff");
-                                write.write(&len.to_be_bytes()).await.unwrap();
-                                write.write(serialized.as_bytes()).await.unwrap();
-                            }
-                        });
-                        let receive_sender = receive_sender.clone();
-                        spawn(async move {
-                            // println!("new thread");
-
-                            loop {
-                                let mut buf: [u8; 8] = [0; 8];
-                                read.read_exact(&mut buf).await.unwrap();
-                                let size = u64::from_be_bytes(buf);
-                                let mut buf = vec![0; size.try_into().unwrap()];
-                                read.read_exact(&mut buf).await.unwrap();
-                                let deserialized: ASTHistoryEntry =
-                                    serde_json::from_slice(&buf).unwrap();
-
-                                receive_sender.send((deserialized, addr)).unwrap();
-
-                                // println!("got new packet")
-                            }
-                        });
-                    }
-                });
+            while let Ok(rec) = send_receiver.recv().await {
+                let serialized = serde_json::to_string(&rec).unwrap();
+                let len: u64 = serialized.as_bytes().len().try_into().unwrap();
+                // println!("send stuff");
+                write.write(&len.to_be_bytes()).await.unwrap();
+                write.write(serialized.as_bytes()).await.unwrap();
             }
+        });
+        spawn(async move {
+            // println!("new thread");
+            let mut buf: [u8; 8] = [0; 8];
+            loop {
+                read.read_exact(&mut buf).await.unwrap();
+                let size = u64::from_be_bytes(buf);
+                let mut buf = vec![0; size.try_into().unwrap()];
+                read.read_exact(&mut buf).await.unwrap();
+                let deserialized: ASTHistoryEntry = serde_json::from_slice(&buf).unwrap();
 
-            let initial_uuid = generate_uuid();
-            let first = ASTHistoryEntry {
-                peer: "1".to_string(),
-                previous: vec![],
-                value: ASTHistoryEntryInner::Initial {
-                    ast: AST {
-                        uuid: initial_uuid.clone(),
-                        changed_by: generate_uuid(),
-                        value: ASTInner::Integer { value: 42 },
-                    },
+                // println!("got new packet {:?}", deserialized);
+
+                receive_sender.send((deserialized, local_addr)).unwrap();
+            }
+        });
+
+        // println!("connected to server");
+    });
+
+    if args.len() > 1 {
+        let initial_uuid = generate_uuid();
+        let first = ASTHistoryEntry {
+            peer: "1".to_string(),
+            previous: vec![],
+            value: ASTHistoryEntryInner::Initial {
+                ast: AST {
+                    uuid: initial_uuid.clone(),
+                    changed_by: generate_uuid(),
+                    value: ASTInner::Integer { value: 42 },
                 },
-            };
-            let first_hash = first.hash();
-            history.push(first.clone());
-            send_sender.send(first).unwrap();
-            let second = ASTHistoryEntry {
-                peer: "2".to_string(),
-                previous: vec![first_hash],
-                value: ASTHistoryEntryInner::SetInteger {
-                    uuid: initial_uuid,
-                    value: 43,
-                },
-            };
-            history.push(second.clone());
-            send_sender.send(second).unwrap();
-        }
-        "client" => {
-            spawn(async {
-                let mut stream = TcpStream::connect("127.0.0.1:1234").await.unwrap();
-                let local_addr = stream.local_addr().unwrap();
-                let (mut read, mut write) = stream.into_split();
-                spawn(async move {
-                    // println!("new thread");
-
-                    while let Ok(rec) = send_receiver.recv().await {
-                        let serialized = serde_json::to_string(&rec).unwrap();
-                        let len: u64 = serialized.as_bytes().len().try_into().unwrap();
-                        // println!("send stuff");
-                        write.write(&len.to_be_bytes()).await.unwrap();
-                        write.write(serialized.as_bytes()).await.unwrap();
-                    }
-                });
-                spawn(async move {
-                    // println!("new thread");
-                    let mut buf: [u8; 8] = [0; 8];
-                    loop {
-                        read.read_exact(&mut buf).await.unwrap();
-                        let size = u64::from_be_bytes(buf);
-                        let mut buf = vec![0; size.try_into().unwrap()];
-                        read.read_exact(&mut buf).await.unwrap();
-                        let deserialized: ASTHistoryEntry = serde_json::from_slice(&buf).unwrap();
-
-                        // println!("got new packet {:?}", deserialized);
-
-                        receive_sender.send((deserialized, local_addr)).unwrap();
-                    }
-                });
-
-                // println!("connected to server");
-            });
-        }
-        other => {
-            panic!("expected `server` or `client` as first argument but got {other}")
-        }
+            },
+        };
+        let first_hash = first.hash();
+        history.push(first.clone());
+        send_sender.send(first).unwrap();
+        let second = ASTHistoryEntry {
+            peer: "2".to_string(),
+            previous: vec![first_hash],
+            value: ASTHistoryEntryInner::SetInteger {
+                uuid: initial_uuid,
+                value: 43,
+            },
+        };
+        history.push(second.clone());
+        send_sender.send(second).unwrap();
     }
 
     // println!("waiting for initial?");
