@@ -562,6 +562,16 @@ async fn main() -> std::io::Result<()> {
     let (mut receive_sender, mut receive_receiver) = broadcast::channel::<ASTHistoryEntry>(16);
     let (mut send_sender, mut send_receiver) = broadcast::channel::<ASTHistoryEntry>(16);
 
+    {
+        let mut send_receiver = send_receiver.resubscribe();
+        let receive_sender = receive_sender.clone();
+        spawn(async move {
+            while let Ok(re) = send_receiver.recv().await {
+                receive_sender.send(re).unwrap();
+            }
+        });
+    }
+
     match args[1].as_str() {
         "server" => {
             let receive_receiver = receive_receiver.resubscribe();
@@ -575,6 +585,7 @@ async fn main() -> std::io::Result<()> {
 
                     let iter = history.iter();
 
+                    // broadcast received stuff
                     let mut receive_receiver = receive_receiver.resubscribe();
                     spawn(async move {
                         println!("new thread");
@@ -671,6 +682,7 @@ async fn main() -> std::io::Result<()> {
         }
     }
 
+    println!("waiting for initial?");
     let ref entry @ ASTHistoryEntry {
         ref previous,
         ref peer,
