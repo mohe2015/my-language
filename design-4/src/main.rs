@@ -543,23 +543,26 @@ fn main() -> std::io::Result<()> {
                                 while let Ok(rec) = send_rx.recv() {
                                     let serialized = serde_json::to_string(&rec).unwrap();
                                     let len: u64 = serialized.as_bytes().len().try_into().unwrap();
+                                    println!("send stuff");
                                     stream_clone.write(&len.to_be_bytes()).unwrap();
                                     stream_clone.write(serialized.as_bytes()).unwrap();
                                 }
                             });
                             thread::spawn(move || {
                                 println!("new thread");
-                                let mut buf: [u8; 8] = [0; 8];
-                                stream.read_exact(&mut buf).unwrap();
-                                let size = u64::from_be_bytes(buf);
-                                let mut buf = vec![0; size.try_into().unwrap()];
-                                stream.read_exact(&mut buf).unwrap();
-                                let deserialized: ASTHistoryEntry =
-                                    serde_json::from_slice(&buf).unwrap();
+                                loop {
+                                    let mut buf: [u8; 8] = [0; 8];
+                                    stream.read_exact(&mut buf).unwrap();
+                                    let size = u64::from_be_bytes(buf);
+                                    let mut buf = vec![0; size.try_into().unwrap()];
+                                    stream.read_exact(&mut buf).unwrap();
+                                    let deserialized: ASTHistoryEntry =
+                                        serde_json::from_slice(&buf).unwrap();
 
-                                receive_tx.send(deserialized).unwrap();
+                                    receive_tx.send(deserialized).unwrap();
 
-                                println!("got new packet")
+                                    println!("got new packet")
+                                }
                             });
                         }
                     }
@@ -592,35 +595,41 @@ fn main() -> std::io::Result<()> {
                 .unwrap();
         }
         "client" => {
-            let mut stream = TcpStream::connect("127.0.0.1:1234")?;
-            let stream_clone = stream.try_clone();
-            if let Ok(mut stream_clone) = stream_clone {
-                thread::spawn(move || {
-                    println!("new thread");
+            thread::spawn(move || {
+                let mut stream = TcpStream::connect("127.0.0.1:1234").unwrap();
+                let stream_clone = stream.try_clone();
+                if let Ok(mut stream_clone) = stream_clone {
+                    thread::spawn(move || {
+                        println!("new thread");
 
-                    while let Ok(rec) = send_rx.recv() {
-                        let serialized = serde_json::to_string(&rec).unwrap();
-                        let len: u64 = serialized.as_bytes().len().try_into().unwrap();
-                        stream_clone.write(&len.to_be_bytes()).unwrap();
-                        stream_clone.write(serialized.as_bytes()).unwrap();
-                    }
-                });
-                thread::spawn(move || {
-                    println!("new thread");
-                    let mut buf: [u8; 8] = [0; 8];
-                    stream.read_exact(&mut buf).unwrap();
-                    let size = u64::from_be_bytes(buf);
-                    let mut buf = vec![0; size.try_into().unwrap()];
-                    stream.read_exact(&mut buf).unwrap();
-                    let deserialized: ASTHistoryEntry = serde_json::from_slice(&buf).unwrap();
+                        while let Ok(rec) = send_rx.recv() {
+                            let serialized = serde_json::to_string(&rec).unwrap();
+                            let len: u64 = serialized.as_bytes().len().try_into().unwrap();
+                            println!("send stuff");
+                            stream_clone.write(&len.to_be_bytes()).unwrap();
+                            stream_clone.write(serialized.as_bytes()).unwrap();
+                        }
+                    });
+                    thread::spawn(move || {
+                        println!("new thread");
+                        let mut buf: [u8; 8] = [0; 8];
+                        loop {
+                            stream.read_exact(&mut buf).unwrap();
+                            let size = u64::from_be_bytes(buf);
+                            let mut buf = vec![0; size.try_into().unwrap()];
+                            stream.read_exact(&mut buf).unwrap();
+                            let deserialized: ASTHistoryEntry =
+                                serde_json::from_slice(&buf).unwrap();
 
-                    receive_tx.send(deserialized).unwrap();
+                            receive_tx.send(deserialized).unwrap();
 
-                    println!("got new packet")
-                });
-            }
+                            println!("got new packet")
+                        }
+                    });
+                }
 
-            println!("connected to server");
+                println!("connected to server");
+            });
         }
         other => {
             panic!("expected `server` or `client` as first argument but got {other}")
@@ -637,10 +646,10 @@ fn main() -> std::io::Result<()> {
     };
     let mut ast = ast.clone();
     println!("{ast:?}");
-    send_tx.send(entry.clone()).unwrap();
 
     while let history = receive_rx.recv().unwrap() {
         ast.apply(&history);
+        println!("{ast:?}");
     }
     println!("{ast:?}");
 
