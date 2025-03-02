@@ -295,7 +295,10 @@ impl App {
 
                                 operations
                                     .iter()
-                                    .for_each(|history| self.ast.apply(history));
+                                    .for_each(|history| {
+                                        self.ast.apply(history);
+                                        self.send.send(history.clone()).unwrap();
+                                    });
                             }
                             KeyCode::Char(' ') => {
                                 // insert in list (maybe first simply to the right?)
@@ -330,7 +333,10 @@ impl App {
 
                                 operations
                                     .iter()
-                                    .for_each(|history| self.ast.apply(history));
+                                    .for_each(|history| {
+                                        self.ast.apply(history);
+                                        self.send.send(history.clone()).unwrap();
+                                    });
                             }
                             KeyCode::Down => {
                                 self.selected = self
@@ -472,7 +478,10 @@ impl App {
 
                                 operations
                                     .iter()
-                                    .for_each(|history| self.ast.apply(history));
+                                    .for_each(|history| {
+                                        self.ast.apply(history);
+                                        self.send.send(history.clone()).unwrap();
+                                    });
                             }
                             _ => {}
                         }
@@ -647,16 +656,16 @@ async fn main() -> std::io::Result<()> {
             let first_hash = first.hash();
             history.push(first.clone());
             send_sender.send(first).unwrap();
-            send_sender
-                .send(ASTHistoryEntry {
-                    peer: "2".to_string(),
-                    previous: vec![first_hash],
-                    value: ASTHistoryEntryInner::SetInteger {
-                        uuid: initial_uuid,
-                        value: 43,
-                    },
-                })
-                .unwrap();
+            let second = ASTHistoryEntry {
+                peer: "2".to_string(),
+                previous: vec![first_hash],
+                value: ASTHistoryEntryInner::SetInteger {
+                    uuid: initial_uuid,
+                    value: 43,
+                },
+            };
+            history.push(second.clone());
+            send_sender.send(second).unwrap();
         }
         "client" => {
             spawn(async {
