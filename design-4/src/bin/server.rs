@@ -14,9 +14,10 @@ async fn main() -> std::io::Result<()> {
 
     let history: Arc<AppendOnlyVec<Vec<u8>>> = Arc::new(AppendOnlyVec::new());
 
-    let (tx, mut rx) = watch::channel(history.len());
+    let (tx, rx) = watch::channel(history.len());
 
-    while let Ok((mut stream, addr)) = listener.accept().await {
+    while let Ok((stream, addr)) = listener.accept().await {
+        println!("[+] new connection from {addr}");
         let (mut read, mut write) = stream.into_split();
 
         {
@@ -27,6 +28,7 @@ async fn main() -> std::io::Result<()> {
                 loop {
                     let current_index = *rx.borrow_and_update();
                     while last_index < current_index {
+                        println!("[+] send {last_index} to {addr}");
                         let val = &history[last_index];
                         write.write(&val.len().to_be_bytes()).await.unwrap();
                         write.write(&val).await.unwrap();
@@ -38,6 +40,7 @@ async fn main() -> std::io::Result<()> {
                 }
             });
         }
+        let tx = tx.clone();
         let history = history.clone();
         spawn(async move {
             loop {
@@ -48,6 +51,8 @@ async fn main() -> std::io::Result<()> {
                 read.read_exact(&mut buf).await.unwrap();
 
                 history.push(buf);
+                tx.send(history.len()).unwrap();
+                println!("[+] received value from {addr}");
             }
         });
     }
