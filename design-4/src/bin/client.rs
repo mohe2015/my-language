@@ -235,7 +235,8 @@ enum ASTHistoryEntryInner {
         uuid: String,
         wrapping_uuid: String,
     },
-    /// As we're a programming language inserting at index probably makes most sense
+    /// As we're a programming language inserting at index probably makes most
+    /// sense
     InsertAtIndex {
         uuid: String,
         index: usize,
@@ -745,8 +746,8 @@ async fn main() -> std::io::Result<()> {
 
     // first step is just apply updates in dag traversal order
 
-    // maybe for every element store who updated it last (kind of like blame information?)
-    // and create conflict if it is a parallel edit?
+    // maybe for every element store who updated it last (kind of like blame
+    // information?) and create conflict if it is a parallel edit?
 
     let original_hook = take_hook();
     set_hook(Box::new(move |panic_info| {
