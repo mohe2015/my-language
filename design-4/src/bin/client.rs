@@ -186,10 +186,14 @@ impl AST {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 enum ASTInner {
     Add {
-        items: Vec<AST>, // two users should be allowed to add elements concurrently without conflict? or maybe a light conflict that you can easily resolve?
+        // two users should be allowed to add elements concurrently without conflict?
+        // or maybe a light conflict that you can easily resolve?
+        items: Vec<AST>,
     },
     Integer {
-        value: i64, // e.g. if one user updates this, then this should be fine. but two users updating it should create a conflict
+        // e.g. if one user updates this, then this should be fine.
+        // but two users updating it should create a conflict
+        value: i64,
     },
 }
 
@@ -197,7 +201,8 @@ enum ASTInner {
 pub struct ASTHistoryEntry {
     previous: Vec<String>,
     peer: String, // TODO sign with this peer id
-    // we could also store which commit changed the value last here and if it doesn't match, it's a conflict
+    // we could also store which commit changed the value last here and
+    // if it doesn't match, it's a conflict
     value: ASTHistoryEntryInner,
 }
 
@@ -353,9 +358,10 @@ impl App {
                                         let node = self.ast.get_by_uuid_mut(elem).unwrap();
                                         match &node.value {
                                             ASTInner::Add { items } => {
-                                                (items.first().unwrap().uuid.clone(), None)
+                                                    (items.first().unwrap().uuid.clone(), None)
                                             }
-                                            ASTInner::Integer { value } => (node.uuid.clone(), Some(0)),
+                                            ASTInner::Integer { value } => (node.uuid.clone(),
+                                             Some(0)),
                                         }
                                     })
                                     .collect();
@@ -739,7 +745,8 @@ async fn main() -> std::io::Result<()> {
 
     // first step is just apply updates in dag traversal order
 
-    // maybe for every element store who updated it last (kind of like blame information?) and create conflict if it is a parallel edit?
+    // maybe for every element store who updated it last (kind of like blame information?)
+    // and create conflict if it is a parallel edit?
 
     let original_hook = take_hook();
     set_hook(Box::new(move |panic_info| {
