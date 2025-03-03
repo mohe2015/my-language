@@ -124,6 +124,7 @@ impl AST {
             ASTHistoryEntryInner::WrapIntegerInAdd { uuid } => {
                 let ast = self.get_by_uuid_mut(uuid).unwrap();
 
+                // this looks like an issue
                 let new = AST {
                     uuid: generate_uuid(),
                     changed_by: history.peer.clone(),
@@ -563,21 +564,23 @@ async fn main() -> std::io::Result<()> {
         broadcast::channel::<(ASTHistoryEntry, SocketAddr)>(16);
     let (mut send_sender, mut send_receiver) = broadcast::channel::<ASTHistoryEntry>(16);
 
-    spawn(async {
-        let mut stream = TcpStream::connect("127.0.0.1:1234").await.unwrap();
-        let local_addr = stream.local_addr().unwrap();
-        let (mut read, mut write) = stream.into_split();
-        spawn(async move {
-            // println!("new thread");
+    let mut stream = TcpStream::connect("127.0.0.1:1234").await.unwrap();
+    let local_addr = stream.local_addr().unwrap();
 
-            while let Ok(rec) = send_receiver.recv().await {
-                let serialized = serde_json::to_string(&rec).unwrap();
-                let len: u64 = serialized.as_bytes().len().try_into().unwrap();
-                // println!("send stuff");
-                write.write(&len.to_be_bytes()).await.unwrap();
-                write.write(serialized.as_bytes()).await.unwrap();
-            }
-        });
+    let (mut read, mut write) = stream.into_split();
+    spawn(async move {
+        // println!("new thread");
+
+        while let Ok(rec) = send_receiver.recv().await {
+            let serialized = serde_json::to_string(&rec).unwrap();
+            let len: u64 = serialized.as_bytes().len().try_into().unwrap();
+            // println!("send stuff");
+            write.write(&len.to_be_bytes()).await.unwrap();
+            write.write(serialized.as_bytes()).await.unwrap();
+        }
+    });
+    {
+        let receive_sender = receive_sender.clone();
         spawn(async move {
             // println!("new thread");
             let mut buf: [u8; 8] = [0; 8];
@@ -593,9 +596,9 @@ async fn main() -> std::io::Result<()> {
                 receive_sender.send((deserialized, local_addr)).unwrap();
             }
         });
+    }
 
-        // println!("connected to server");
-    });
+    // println!("connected to server");
 
     if args.len() > 1 {
         let initial_uuid = generate_uuid();
@@ -612,7 +615,8 @@ async fn main() -> std::io::Result<()> {
         };
         let first_hash = first.hash();
         history.push(first.clone());
-        send_sender.send(first).unwrap();
+        send_sender.send(first.clone()).unwrap();
+        receive_sender.send((first, local_addr)).unwrap();
         let second = ASTHistoryEntry {
             peer: "2".to_string(),
             previous: vec![first_hash],
@@ -622,7 +626,8 @@ async fn main() -> std::io::Result<()> {
             },
         };
         history.push(second.clone());
-        send_sender.send(second).unwrap();
+        send_sender.send(second.clone()).unwrap();
+        receive_sender.send((second, local_addr)).unwrap();
     }
 
     println!(

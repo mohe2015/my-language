@@ -12,10 +12,11 @@ use tokio::{
 async fn main() -> std::io::Result<()> {
     let listener = TcpListener::bind("127.0.0.1:1234").await.unwrap();
 
-    let history: Arc<AppendOnlyVec<Vec<u8>>> = Arc::new(AppendOnlyVec::new());
+    let history: Arc<AppendOnlyVec<(Vec<u8>, usize)>> = Arc::new(AppendOnlyVec::new());
 
     let (tx, rx) = watch::channel(history.len());
 
+    let mut id = 0;
     while let Ok((stream, addr)) = listener.accept().await {
         println!("[+] new connection from {addr}");
         let (mut read, mut write) = stream.into_split();
@@ -30,8 +31,10 @@ async fn main() -> std::io::Result<()> {
                     while last_index < current_index {
                         println!("[+] send {last_index} to {addr}");
                         let val = &history[last_index];
-                        write.write(&val.len().to_be_bytes()).await.unwrap();
-                        write.write(&val).await.unwrap();
+                        if val.1 != id {
+                            write.write(&val.0.len().to_be_bytes()).await.unwrap();
+                            write.write(&val.0).await.unwrap();
+                        }
                         last_index += 1;
                     }
                     if rx.changed().await.is_err() {
@@ -50,11 +53,13 @@ async fn main() -> std::io::Result<()> {
                 let mut buf = vec![0; size.try_into().unwrap()];
                 read.read_exact(&mut buf).await.unwrap();
 
-                history.push(buf);
+                history.push((buf, id));
                 tx.send(history.len()).unwrap();
                 println!("[+] received value from {addr}");
             }
         });
+
+        id += 1;
     }
 
     Ok(())
