@@ -625,7 +625,9 @@ async fn main() -> std::io::Result<()> {
         send_sender.send(second).unwrap();
     }
 
-    // println!("waiting for initial?");
+    println!(
+        "waiting for initial? if this doesn't work add a second argument to trigger initialization"
+    );
     let ref entry @ ASTHistoryEntry {
         ref previous,
         ref peer,
