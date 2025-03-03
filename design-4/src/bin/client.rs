@@ -490,6 +490,92 @@ impl App {
                                         self.send.send(history.clone()).unwrap();
                                     });
                             }
+                            KeyCode::Backspace => {
+                                let operations = self
+                                    .selected
+                                    .iter()
+                                    .filter_map(|(elem, offset)| {
+                                        let node = self.ast.get_by_uuid_mut(elem).unwrap();
+
+                                        match &node.value {
+                                            ASTInner::Add { items } => None,
+                                            ASTInner::Integer { value } => {
+                                                let mut new_value = value.to_string();
+                                                new_value.remove(offset.unwrap());
+                                                Some(ASTHistoryEntry {
+                                                    previous: vec![],
+                                                    peer: "todo".to_owned(),
+                                                    value: ASTHistoryEntryInner::SetInteger {
+                                                        uuid: elem.clone(),
+                                                        value: new_value.parse().unwrap(),
+                                                    },
+                                                })
+                                            }
+                                        }
+                                    })
+                                    .collect::<Vec<_>>();
+
+                                self.selected.iter_mut().for_each(|(elem, offset)| {
+                                    let node = self.ast.get_by_uuid_mut(&elem).unwrap();
+
+                                    match &node.value {
+                                        ASTInner::Add { items } => {}
+                                        ASTInner::Integer { value } => {
+                                            *offset = offset.map(|offset| offset - 1);
+                                        }
+                                    }
+                                });
+
+                                operations
+                                    .iter()
+                                    .for_each(|history| {
+                                        self.ast.apply(history);
+                                        self.send.send(history.clone()).unwrap();
+                                    });
+                            }
+                            KeyCode::Delete => {
+                                let operations = self
+                                .selected
+                                .iter()
+                                .filter_map(|(elem, offset)| {
+                                    let node = self.ast.get_by_uuid_mut(elem).unwrap();
+
+                                    match &node.value {
+                                        ASTInner::Add { items } => None,
+                                        ASTInner::Integer { value } => {
+                                            let mut new_value = value.to_string();
+                                            new_value.remove(offset.unwrap());
+                                            Some(ASTHistoryEntry {
+                                                previous: vec![],
+                                                peer: "todo".to_owned(),
+                                                value: ASTHistoryEntryInner::SetInteger {
+                                                    uuid: elem.clone(),
+                                                    value: new_value.parse().unwrap(),
+                                                },
+                                            })
+                                        }
+                                    }
+                                })
+                                .collect::<Vec<_>>();
+
+                            self.selected.iter_mut().for_each(|(elem, offset)| {
+                                let node = self.ast.get_by_uuid_mut(&elem).unwrap();
+
+                                match &node.value {
+                                    ASTInner::Add { items } => {}
+                                    ASTInner::Integer { value } => {
+                                        *offset = offset.map(|offset| offset - 1);
+                                    }
+                                }
+                            });
+
+                            operations
+                                .iter()
+                                .for_each(|history| {
+                                    self.ast.apply(history);
+                                    self.send.send(history.clone()).unwrap();
+                                });
+                            }
                             _ => {}
                         }
                     }
