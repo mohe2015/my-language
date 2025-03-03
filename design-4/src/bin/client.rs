@@ -121,12 +121,15 @@ impl AST {
                 };
                 items.insert(*index, ast.clone());
             }
-            ASTHistoryEntryInner::WrapIntegerInAdd { uuid } => {
+            ASTHistoryEntryInner::WrapIntegerInAdd {
+                uuid,
+                wrapping_uuid,
+            } => {
                 let ast = self.get_by_uuid_mut(uuid).unwrap();
 
                 // this looks like an issue
                 let new = AST {
-                    uuid: generate_uuid(),
+                    uuid: wrapping_uuid.clone(),
                     changed_by: history.peer.clone(),
                     value: ASTInner::Add { items: vec![] },
                 };
@@ -225,6 +228,7 @@ enum ASTHistoryEntryInner {
     },
     WrapIntegerInAdd {
         uuid: String,
+        wrapping_uuid: String,
     },
     /// As we're a programming language inserting at index probably makes most sense
     InsertAtIndex {
@@ -289,6 +293,7 @@ impl App {
                                                 peer: "todo".to_owned(),
                                                 value: ASTHistoryEntryInner::WrapIntegerInAdd {
                                                     uuid: elem.clone(),
+                                                    wrapping_uuid: generate_uuid()
                                                 },
                                             }),
                                         }
