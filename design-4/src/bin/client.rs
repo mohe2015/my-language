@@ -101,61 +101,6 @@ impl AST {
         None
     }
 
-    pub fn apply(&mut self, history: &ASTHistoryEntry) {
-        match &history.value {
-            ASTHistoryEntryInner::Initial { ast } => panic!("initial can not be set twice"),
-            ASTHistoryEntryInner::SetInteger {
-                uuid,
-                value: new_value,
-            } => {
-                let ast = self.get_by_uuid_mut(uuid).unwrap();
-                let ASTInner::Integer { value } = &mut ast.value else {
-                    panic!()
-                };
-                *value = *new_value;
-            }
-            ASTHistoryEntryInner::InsertAtIndex { uuid, index, ast } => {
-                let Some(list_ast) = self.get_by_uuid_mut(uuid) else {
-                    panic!("failed to get {uuid} from {self:?}")
-                };
-                let ASTInner::Add { items } = &mut list_ast.value else {
-                    panic!()
-                };
-                items.insert(*index, ast.clone());
-            }
-            ASTHistoryEntryInner::WrapIntegerInAdd {
-                uuid,
-                wrapping_uuid,
-            } => {
-                let ast = self.get_by_uuid_mut(uuid).unwrap();
-
-                // this looks like an issue
-                let new = AST {
-                    uuid: wrapping_uuid.clone(),
-                    changed_by: history.peer.clone(),
-                    value: ASTInner::Add { items: vec![] },
-                };
-
-                let inner = std::mem::replace(ast, new);
-
-                let ASTInner::Add { items } = &mut ast.value else {
-                    panic!()
-                };
-                items.push(inner);
-            }
-            ASTHistoryEntryInner::Delete { uuid } => {
-                let ASTInner::Add { items } = &mut self.parent_of_uuid_mut(uuid).unwrap().value
-                else {
-                    panic!();
-                };
-
-                items.retain(|elem| elem.uuid != *uuid);
-            }
-        }
-        #[cfg(debug_assertions)]
-        self.validate();
-    }
-
     pub fn render(&self, selected: &HashMap<String, Option<usize>>) -> Vec<MySpan> {
         let se = selected.get(&self.uuid);
         let style = se.is_some();
@@ -279,6 +224,61 @@ pub struct App {
 }
 
 impl App {
+    pub fn apply(&mut self, history: &ASTHistoryEntry) {
+        match &history.value {
+            ASTHistoryEntryInner::Initial { ast } => panic!("initial can not be set twice"),
+            ASTHistoryEntryInner::SetInteger {
+                uuid,
+                value: new_value,
+            } => {
+                let ast = self.ast.get_by_uuid_mut(uuid).unwrap();
+                let ASTInner::Integer { value } = &mut ast.value else {
+                    panic!()
+                };
+                *value = *new_value;
+            }
+            ASTHistoryEntryInner::InsertAtIndex { uuid, index, ast } => {
+                let Some(list_ast) = self.ast.get_by_uuid_mut(uuid) else {
+                    panic!("failed to get {uuid} from {:?}", self.ast)
+                };
+                let ASTInner::Add { items } = &mut list_ast.value else {
+                    panic!()
+                };
+                items.insert(*index, ast.clone());
+            }
+            ASTHistoryEntryInner::WrapIntegerInAdd {
+                uuid,
+                wrapping_uuid,
+            } => {
+                let ast = self.ast.get_by_uuid_mut(uuid).unwrap();
+
+                // this looks like an issue
+                let new = AST {
+                    uuid: wrapping_uuid.clone(),
+                    changed_by: history.peer.clone(),
+                    value: ASTInner::Add { items: vec![] },
+                };
+
+                let inner = std::mem::replace(ast, new);
+
+                let ASTInner::Add { items } = &mut ast.value else {
+                    panic!()
+                };
+                items.push(inner);
+            }
+            ASTHistoryEntryInner::Delete { uuid } => {
+                let ASTInner::Add { items } = &mut self.ast.parent_of_uuid_mut(uuid).unwrap().value
+                else {
+                    panic!();
+                };
+
+                items.retain(|elem| elem.uuid != *uuid);
+            }
+        }
+        #[cfg(debug_assertions)]
+        self.ast.validate();
+    }
+
     fn handle_event(&mut self, event: Option<Result<Event, std::io::Error>>) -> bool {
         if let Some(Ok(Event::Key(key))) = event {
             if key.kind == event::KeyEventKind::Release {
@@ -746,10 +746,6 @@ impl App {
         //frame.set_cursor_position((5, 0));
     }
 }
-
-// DELETE should update selected so it does not contain non-existing stuff.
-// maybe just switch to parent? if nothing is selected root should be selected
-// by default
 
 #[tokio::main]
 async fn main() -> std::io::Result<()> {
