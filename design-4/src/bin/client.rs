@@ -143,6 +143,14 @@ impl AST {
                 };
                 items.push(inner);
             }
+            ASTHistoryEntryInner::Delete { uuid } => {
+                let ASTInner::Add { items } = &mut self.parent_of_uuid_mut(uuid).unwrap().value
+                else {
+                    panic!();
+                };
+
+                items.retain(|elem| elem.uuid != *uuid);
+            }
         }
         #[cfg(debug_assertions)]
         self.validate();
@@ -244,6 +252,9 @@ enum ASTHistoryEntryInner {
         index: usize,
         ast: AST,
     },
+    Delete {
+        uuid: String,
+    },
 }
 
 pub fn init_tui() -> std::io::Result<Terminal<impl Backend>> {
@@ -317,30 +328,47 @@ impl App {
                             let parent = self.ast.parent_of_uuid_mut(elem)?;
 
                             match &parent.value {
-                                ASTInner::Add { items } => Some(ASTHistoryEntry {
-                                    previous: vec![],
-                                    peer: "todo".to_owned(),
-                                    value: ASTHistoryEntryInner::InsertAtIndex {
-                                        uuid: parent.uuid.clone(),
-                                        index: items
-                                            .iter()
-                                            .position(|item| item.uuid == *elem)
-                                            .unwrap()
-                                            + 1,
-                                        ast: AST {
-                                            uuid: generate_uuid(),
-                                            changed_by: "".to_owned(),
-                                            value: ASTInner::Integer { value: 1 },
+                                ASTInner::Add { items } => {
+                                    let uuid = generate_uuid();
+                                    Some(ASTHistoryEntry {
+                                        previous: vec![],
+                                        peer: "todo".to_owned(),
+                                        value: ASTHistoryEntryInner::InsertAtIndex {
+                                            uuid: parent.uuid.clone(),
+                                            index: items
+                                                .iter()
+                                                .position(|item| item.uuid == *elem)
+                                                .unwrap()
+                                                + 1,
+                                            ast: AST {
+                                                uuid,
+                                                changed_by: "".to_owned(),
+                                                value: ASTInner::Integer { value: 1 },
+                                            },
                                         },
-                                    },
-                                }),
+                                    })
+                                }
                                 ASTInner::Integer { value } => None,
                             }
                         })
                         .collect::<Vec<_>>();
 
                     operations.iter().for_each(|history| {
-                        //TODO self.selected.remove(history.value);
+                        let ASTHistoryEntryInner::InsertAtIndex {
+                            ref uuid,
+                            ref index,
+                            ref ast,
+                        } = history.value
+                        else {
+                            panic!();
+                        };
+                        let ASTInner::Add { ref items } =
+                            self.ast.get_by_uuid_mut(uuid).unwrap().value
+                        else {
+                            panic!();
+                        };
+                        self.selected.remove(&items[*index].uuid);
+                        self.selected.insert(ast.uuid.clone(), None);
                     });
 
                     operations.iter().for_each(|history| {
@@ -542,16 +570,26 @@ impl App {
                             match &node.value {
                                 ASTInner::Add { items } => None,
                                 ASTInner::Integer { value } => {
-                                    let mut new_value = value.to_string();
-                                    new_value.remove(offset.unwrap());
-                                    Some(ASTHistoryEntry {
-                                        previous: vec![],
-                                        peer: "todo".to_owned(),
-                                        value: ASTHistoryEntryInner::SetInteger {
-                                            uuid: elem.clone(),
-                                            value: new_value.parse().unwrap(),
-                                        },
-                                    })
+                                    if let Some(offset) = offset {
+                                        let mut new_value = value.to_string();
+                                        new_value.remove(*offset);
+                                        Some(ASTHistoryEntry {
+                                            previous: vec![],
+                                            peer: "todo".to_owned(),
+                                            value: ASTHistoryEntryInner::SetInteger {
+                                                uuid: elem.clone(),
+                                                value: new_value.parse().unwrap(),
+                                            },
+                                        })
+                                    } else {
+                                        Some(ASTHistoryEntry {
+                                            previous: vec![],
+                                            peer: "todo".to_owned(),
+                                            value: ASTHistoryEntryInner::Delete {
+                                                uuid: elem.clone(),
+                                            },
+                                        })
+                                    }
                                 }
                             }
                         })
@@ -627,7 +665,9 @@ impl App {
 
             select! {
                 event = event_stream.next() => {
-                    self.handle_event(event);
+                    if self.handle_event(event) {
+                        break Ok(());
+                    }
                 }
                 rec = self.receive.recv() => {
                     match rec {
