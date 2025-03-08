@@ -314,7 +314,7 @@ impl App {
                         .collect::<Vec<_>>();
 
                     operations.iter().for_each(|history| {
-                        self.ast.apply(history);
+                        self.apply(history);
                         self.send.send(history.clone()).unwrap();
                     });
                 }
@@ -372,7 +372,7 @@ impl App {
                     });
 
                     operations.iter().for_each(|history| {
-                        self.ast.apply(history);
+                        self.apply(history);
                         self.send.send(history.clone()).unwrap();
                     });
                 }
@@ -408,7 +408,7 @@ impl App {
                         .collect::<Vec<_>>();
 
                     operations.iter().for_each(|history| {
-                        self.ast.apply(history);
+                        self.apply(history);
                         self.send.send(history.clone()).unwrap();
                     });
                 }
@@ -554,7 +554,7 @@ impl App {
 
                     // First apply all operations to ensure bugs in the apply logic don't propagate
                     operations.iter().for_each(|history| {
-                        self.ast.apply(history);
+                        self.apply(history);
                     });
                     operations.iter().for_each(|history| {
                         self.send.send(history.clone()).unwrap();
@@ -607,7 +607,7 @@ impl App {
                     });
 
                     operations.iter().for_each(|history| {
-                        self.ast.apply(history);
+                        self.apply(history);
                         self.send.send(history.clone()).unwrap();
                     });
                 }
@@ -648,7 +648,7 @@ impl App {
                     });
 
                     operations.iter().for_each(|history| {
-                        self.ast.apply(history);
+                        self.apply(history);
                         self.send.send(history.clone()).unwrap();
                     });
                 }
@@ -671,7 +671,7 @@ impl App {
                 }
                 rec = self.receive.recv() => {
                     match rec {
-                        Some(rec) => self.ast.apply(&rec.0),
+                        Some(rec) => self.apply(&rec.0),
                         None => panic!("empty")
                     }
                 }
