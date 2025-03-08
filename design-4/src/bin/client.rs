@@ -372,6 +372,10 @@ impl App {
                                     .selected
                                     .iter()
                                     .map(|(elem, offset)| {
+                                        if offset.is_some() {
+                                            return (elem.clone(), None)
+                                        }
+
                                         self.ast
                                             .parent_of_uuid_mut(elem)
                                             .map(|item| (item.uuid.clone(), None))
