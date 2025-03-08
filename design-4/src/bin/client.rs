@@ -679,7 +679,7 @@ impl App {
         }
     }
 
-    pub fn ui(&self, frame: &mut Frame) {
+    pub fn ui(&mut self, frame: &mut Frame) {
         let layout = Layout::default()
             .direction(Direction::Vertical)
             .constraints(vec![Constraint::Percentage(100), Constraint::Length(1)])
@@ -687,6 +687,21 @@ impl App {
 
         let highlighted = Style::new().fg(Color::Black).bg(Color::White);
         let not_highlighted = Style::new().fg(Color::White);
+
+        self.selected = self
+            .selected
+            .iter()
+            .filter_map(|(elem, offset)| {
+                let ast = self.ast.get_by_uuid_mut(elem)?;
+
+                Some((elem.clone(), offset.clone()))
+            })
+            .collect();
+
+        if self.selected.is_empty() {
+            self.selected.insert(self.ast.uuid.clone(), None);
+        }
+
         let binding = self.ast.render(&self.selected);
         let mut content = binding
             .iter()
@@ -731,6 +746,10 @@ impl App {
         //frame.set_cursor_position((5, 0));
     }
 }
+
+// DELETE should update selected so it does not contain non-existing stuff.
+// maybe just switch to parent? if nothing is selected root should be selected
+// by default
 
 #[tokio::main]
 async fn main() -> std::io::Result<()> {
