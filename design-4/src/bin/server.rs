@@ -29,8 +29,11 @@ async fn main() -> std::io::Result<()> {
                 loop {
                     let current_index = *rx.borrow_and_update();
                     while last_index < current_index {
-                        println!("[+] send {last_index} to {addr}");
                         let val = &history[last_index];
+                        println!(
+                            "[+] send {last_index} {} to {addr}",
+                            str::from_utf8(&val.0).unwrap()
+                        );
                         if val.1 != id {
                             write.write(&val.0.len().to_be_bytes()).await.unwrap();
                             write.write(&val.0).await.unwrap();

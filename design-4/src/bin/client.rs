@@ -115,7 +115,9 @@ impl AST {
                 *value = *new_value;
             }
             ASTHistoryEntryInner::InsertAtIndex { uuid, index, ast } => {
-                let list_ast = self.get_by_uuid_mut(uuid).unwrap();
+                let Some(list_ast) = self.get_by_uuid_mut(uuid) else {
+                    panic!("failed to get {uuid} from {self:?}")
+                };
                 let ASTInner::Add { items } = &mut list_ast.value else {
                     panic!()
                 };
@@ -469,7 +471,7 @@ impl App {
                                             ASTInner::Add { items } => None,
                                             ASTInner::Integer { value } => {
                                                 let mut new_value = value.to_string();
-                                                new_value.insert(offset.unwrap(), char);
+                                                new_value.insert((*offset)?, char);
                                                 Some(ASTHistoryEntry {
                                                     previous: vec![],
                                                     peer: "todo".to_owned(),
@@ -494,10 +496,15 @@ impl App {
                                     }
                                 });
 
+                                // First apply all operations to ensure bugs in the apply logic don't propagate
                                 operations
                                     .iter()
                                     .for_each(|history| {
                                         self.ast.apply(history);
+                                    });
+                                operations
+                                    .iter()
+                                    .for_each(|history| {
                                         self.send.send(history.clone()).unwrap();
                                     });
                             }
