@@ -383,22 +383,24 @@ impl App {
                                 self.selected = self
                                     .selected
                                     .iter()
-                                    .filter_map(|(elem, offset)| {
+                                    .map(|(elem, offset)| {
                                         if let Some(offset) = offset {
                                             let node = self.ast.get_by_uuid_mut(elem).unwrap();
 
                                             match &node.value {
                                                 ASTInner::Add { items } => {}
                                                 ASTInner::Integer { value } => {
-                                                    return Some((
+                                                    return (
                                                         elem.clone(),
                                                         Some(offset.saturating_sub(1)),
-                                                    ));
+                                                    );
                                                 }
                                             }
                                         }
 
-                                        let parent = self.ast.parent_of_uuid_mut(elem)?;
+                                        let Some(parent) = self.ast.parent_of_uuid_mut(elem) else {
+                                            return (elem.clone(), *offset)
+                                        };
 
                                         match &parent.value {
                                             ASTInner::Add { items } => {
@@ -406,9 +408,7 @@ impl App {
                                                     .iter()
                                                     .position(|item| item.uuid == *elem)
                                                     .unwrap();
-                                                items
-                                                    .get(index.saturating_sub(1))
-                                                    .map(|i| (i.uuid.clone(), None))
+                                                (items[index.saturating_sub(1)].uuid.clone(), None)
                                             }
                                             ASTInner::Integer { value } => unreachable!(),
                                         }
@@ -419,25 +419,27 @@ impl App {
                                 self.selected = self
                                     .selected
                                     .iter()
-                                    .filter_map(|(elem, offset)| {
+                                    .map(|(elem, offset)| {
                                         if let Some(offset) = offset {
                                             let node = self.ast.get_by_uuid_mut(elem).unwrap();
 
                                             match &node.value {
                                                 ASTInner::Add { items } => {}
                                                 ASTInner::Integer { value } => {
-                                                    return Some((
+                                                    return (
                                                         elem.clone(),
                                                         Some(std::cmp::min(
                                                             value.to_string().len(),
                                                             offset + 1,
                                                         )),
-                                                    ));
+                                                    );
                                                 }
                                             }
                                         }
 
-                                        let parent = self.ast.parent_of_uuid_mut(elem)?;
+                                        let Some(parent) = self.ast.parent_of_uuid_mut(elem) else {
+                                            return (elem.clone(), *offset)
+                                        };
 
                                         match &parent.value {
                                             ASTInner::Add { items } => {
@@ -445,9 +447,7 @@ impl App {
                                                     .iter()
                                                     .position(|item| item.uuid == *elem)
                                                     .unwrap();
-                                                items
-                                                    .get(std::cmp::min(items.len() - 1, index + 1))
-                                                    .map(|i| (i.uuid.clone(), None))
+                                                (items[std::cmp::min(items.len() - 1, index + 1)].uuid.clone(), None)
                                             }
                                             ASTInner::Integer { value } => unreachable!(),
                                         }
