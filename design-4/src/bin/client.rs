@@ -267,12 +267,19 @@ impl App {
                 items.push(inner);
             }
             ASTHistoryEntryInner::Delete { uuid } => {
-                let ASTInner::Add { items } = &mut self.ast.parent_of_uuid_mut(uuid).unwrap().value
+                let &mut AST {
+                    value: ASTInner::Add { items },
+                    uuid: parent_uuid,
+                    changed_by,
+                } = &mut self.ast.parent_of_uuid_mut(uuid).unwrap()
                 else {
                     panic!();
                 };
 
                 items.retain(|elem| elem.uuid != *uuid);
+
+                self.selected.remove(uuid);
+                self.selected.insert(parent_uuid.clone(), None);
             }
         }
         #[cfg(debug_assertions)]
@@ -367,7 +374,7 @@ impl App {
                         else {
                             panic!();
                         };
-                        self.selected.remove(&items[*index].uuid);
+                        self.selected.remove(&items[*index - 1].uuid);
                         self.selected.insert(ast.uuid.clone(), None);
                     });
 
@@ -621,16 +628,26 @@ impl App {
                             match &node.value {
                                 ASTInner::Add { items } => None,
                                 ASTInner::Integer { value } => {
-                                    let mut new_value = value.to_string();
-                                    new_value.remove(offset.unwrap());
-                                    Some(ASTHistoryEntry {
-                                        previous: vec![],
-                                        peer: "todo".to_owned(),
-                                        value: ASTHistoryEntryInner::SetInteger {
-                                            uuid: elem.clone(),
-                                            value: new_value.parse().unwrap(),
-                                        },
-                                    })
+                                    if let Some(offset) = offset {
+                                        let mut new_value = value.to_string();
+                                        new_value.remove(*offset);
+                                        Some(ASTHistoryEntry {
+                                            previous: vec![],
+                                            peer: "todo".to_owned(),
+                                            value: ASTHistoryEntryInner::SetInteger {
+                                                uuid: elem.clone(),
+                                                value: new_value.parse().unwrap(),
+                                            },
+                                        })
+                                    } else {
+                                        Some(ASTHistoryEntry {
+                                            previous: vec![],
+                                            peer: "todo".to_owned(),
+                                            value: ASTHistoryEntryInner::Delete {
+                                                uuid: elem.clone(),
+                                            },
+                                        })
+                                    }
                                 }
                             }
                         })
