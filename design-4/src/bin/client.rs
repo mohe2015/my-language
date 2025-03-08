@@ -599,9 +599,9 @@ impl App {
                     }
                 }
                 rec = self.receive.recv() => {
-                    // println!("RECEIVED STUFF");
-                    if let Ok(rec) = rec {
-                        self.ast.apply(&rec.0);
+                    match rec {
+                        Ok(rec) => self.ast.apply(&rec.0),
+                        Err(err) => panic!("{err:?}")
                     }
                 }
             }
