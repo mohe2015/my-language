@@ -30,7 +30,7 @@ use tokio::{
     select, spawn,
     sync::{
         broadcast,
-        mpsc::{UnboundedReceiver, UnboundedSender, unbounded_channel},
+        mpsc::{self, unbounded_channel, UnboundedReceiver, UnboundedSender},
     },
 };
 
@@ -263,7 +263,7 @@ pub struct App {
     status: String,
     /// UUIDs of selected nodes
     selected: HashMap<String, Option<usize>>,
-    receive: broadcast::Receiver<(ASTHistoryEntry, SocketAddr)>,
+    receive: mpsc::UnboundedReceiver<(ASTHistoryEntry, SocketAddr)>,
     send: broadcast::Sender<ASTHistoryEntry>,
 }
 
@@ -600,8 +600,8 @@ impl App {
                 }
                 rec = self.receive.recv() => {
                     match rec {
-                        Ok(rec) => self.ast.apply(&rec.0),
-                        Err(err) => panic!("{err:?}")
+                        Some(rec) => self.ast.apply(&rec.0),
+                        None => panic!("empty")
                     }
                 }
             }
@@ -670,7 +670,7 @@ async fn main() -> std::io::Result<()> {
     let history: Arc<AppendOnlyVec<ASTHistoryEntry>> = Arc::new(AppendOnlyVec::new());
 
     let (mut receive_sender, mut receive_receiver) =
-        broadcast::channel::<(ASTHistoryEntry, SocketAddr)>(16);
+        mpsc::unbounded_channel::<(ASTHistoryEntry, SocketAddr)>();
     let (mut send_sender, mut send_receiver) = broadcast::channel::<ASTHistoryEntry>(16);
 
     let mut stream = TcpStream::connect("127.0.0.1:1234").await.unwrap();
